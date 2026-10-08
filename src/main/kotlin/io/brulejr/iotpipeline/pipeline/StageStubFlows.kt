@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.pipeline
 
+import io.brulejr.iotpipeline.classify.Classification
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.integrationFlow
@@ -23,14 +24,22 @@ class StageStubFlows {
     // TODO storage stage: write known-device readings to InfluxDB.
     @Bean
     fun knownDeviceStubFlow() = integrationFlow(PipelineChannels.KNOWN_DEVICE) {
-        log<Any>(LoggingHandler.Level.INFO, "pipeline.known") { it.payload }
+        log<Classification.Known>(LoggingHandler.Level.INFO, "pipeline.known") { message ->
+            val known = message.payload
+            "known ${known.deviceType} ${known.deviceKey.id} via rule set ${known.ruleSetId}: " +
+                "${known.envelope.payload}"
+        }
         nullChannel()
     }
 
     // TODO recommendation engine: track unknown devices by frequency and proximity.
     @Bean
     fun unknownDeviceStubFlow() = integrationFlow(PipelineChannels.UNKNOWN_DEVICE) {
-        log<Any>(LoggingHandler.Level.DEBUG, "pipeline.unknown") { it.payload }
+        log<Classification.Unknown>(LoggingHandler.Level.DEBUG, "pipeline.unknown") { message ->
+            val unknown = message.payload
+            "unknown ${unknown.deviceKey?.id ?: "unidentified device"} " +
+                "from ${unknown.envelope.origin} (${unknown.reason}): ${unknown.envelope.payload}"
+        }
         nullChannel()
     }
 

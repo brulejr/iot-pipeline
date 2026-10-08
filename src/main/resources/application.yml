@@ -29,6 +29,15 @@ pipeline:
       source: rtl433
       # username/password: set PIPELINE_INGEST_MQTT_USERNAME / PIPELINE_INGEST_MQTT_PASSWORD
 
+logging:
+  level:
+    # Each pipeline stage logs under `pipeline.*` (ingest, known, unknown, errors).
+    # DEBUG while there is no storage stage, since logs are the only record that a
+    # reading arrived; drop to INFO once readings are persisted.
+    pipeline: DEBUG
+    # Uncomment to debug broker connections and topic subscriptions.
+    # org.springframework.integration.mqtt: DEBUG
+
 management:
   endpoints:
     web:

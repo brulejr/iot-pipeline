@@ -61,9 +61,41 @@ treated as an external read-only consumer — the application has no Grafana
 integration of its own.
 
 Actuator exposes `health`, `info`, `metrics`, and `integrationgraph` under
-`http://localhost:5001/actuator`. Micrometer observations are enabled for every
+`http://localhost:5001/mgmt`. Micrometer observations are enabled for every
 Spring Integration channel and handler, so each stage is individually
 observable.
+
+### Seeing readings
+
+Nothing is persisted yet, so logs are the only record that a reading arrived.
+Each stage logs under a `pipeline.*` category, set to DEBUG by default:
+
+| Category | Level | What it shows |
+| --- | --- | --- |
+| `pipeline.ingest` | DEBUG | Every envelope as it leaves the MQTT adapter |
+| `pipeline.unknown` | DEBUG | Readings with no matching rule set — currently all of them |
+| `pipeline.known` | INFO | Readings matched to a curated device |
+| `pipeline.errors` | WARN | Failures routed to the ingest error channel |
+
+A healthy stream looks like this, one `ingest` line paired with one `unknown`
+line per reading:
+
+```
+DEBUG  pipeline.ingest   : received from rtl_433/<host>/events: {"model":"Acurite-Tower",...}
+DEBUG  pipeline.unknown  : unknown Acurite-Tower/A/3064 from rtl_433/<host>/events
+                           (no classification rules configured): {...}
+```
+
+Drop `logging.level.pipeline` to INFO once the storage stage lands. Until rule
+sets exist, `NoRulesClassifier` marks everything unknown, so `pipeline.known`
+stays silent — that is expected, not a fault.
+
+If you see nothing at all, the reading is not reaching the adapter. Check the
+broker and topic first, then confirm message counts are rising:
+
+```bash
+curl -s localhost:5001/mgmt/metrics/spring.integration.send
+```
 
 ### Secrets
 
@@ -109,17 +141,11 @@ MQTT adapter, which is useful when working on later stages without a broker.
 
 ### Local overrides
 
-For machine-specific settings, create
-`src/main/resources/application-local.yml` and run with the `local` profile
-active:
-
-```bash
-SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
-```
-
-Anything in that file overrides `application.yml`, and it is gitignored, so it
-is a reasonable place for a broker address or credentials you do not want
-committed:
+The `local` profile is active by default (`spring.profiles.active:
+${PROFILE:local}`), so `src/main/resources/application-local.yml` is read on
+every run if it exists. Create it for machine-specific settings; it is
+gitignored, so it is a reasonable place for a broker address or credentials you
+do not want committed:
 
 ```yaml
 pipeline:
@@ -130,9 +156,19 @@ pipeline:
       password: hunter2
 ```
 
-The profile is not active by default — without `SPRING_PROFILES_ACTIVE` the
-file is ignored entirely, so it cannot change behaviour for anyone who has not
-opted in.
+Select a different profile with `PROFILE=<name>`, which looks for
+`application-<name>.yml` instead. A fresh clone has no `application-local.yml`
+at all, so the defaults in `application.yml` apply and nothing breaks.
+
+**Precedence catch.** A property set literally in `application-local.yml`
+overrides the `${...}` placeholder in `application.yml`, which means the
+shorthand environment variable stops working. If `application-local.yml`
+contains `pipeline.ingest.mqtt.url`, then `MQTT_URL` has no effect — override
+with the full property name instead, which outranks every config file:
+
+```bash
+PIPELINE_INGEST_MQTT_URL=tcp://127.0.0.1:1883 ./gradlew bootRun
+```
 
 ## Layout
 

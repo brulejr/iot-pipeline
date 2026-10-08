@@ -15,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProp
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.integrationFlow
+import org.springframework.integration.handler.LoggingHandler
 import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory
 import org.springframework.integration.mqtt.core.MqttPahoClientFactory
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter
@@ -58,6 +59,10 @@ class MqttIngestionConfig(private val datafill: MqttIngestionDatafill) {
                     receivedAt = Instant.now(),
                     payload = jsonMapper.readTree(message.payload),
                 )
+            }
+            // Logs are the only record of a reading until the storage stage lands.
+            log<SensorEnvelope>(LoggingHandler.Level.DEBUG, "pipeline.ingest") { message ->
+                "received from ${message.payload.origin}: ${message.payload.payload}"
             }
             channel(PipelineChannels.INGEST)
         }
