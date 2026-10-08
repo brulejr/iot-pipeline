@@ -1,0 +1,55 @@
+# Local infrastructure for the IoT pipeline: InfluxDB 3 Core (owned solely by the
+# pipeline) and Grafana as an external read-only consumer.
+#
+# First run:   ./scripts/bootstrap-influxdb.sh   # creates the admin token and .env
+# Then:        docker compose up -d
+#
+# InfluxDB: http://localhost:8181   Grafana: http://localhost:3000 (admin / see .env)
+# Host ports can be changed with INFLUXDB3_PORT and GRAFANA_PORT in .env.
+name: iot-pipeline
+
+services:
+  influxdb3:
+    image: influxdb:3.12-core
+    command:
+      - influxdb3
+      - serve
+      - --node-id=${INFLUXDB3_NODE_ID:-node0}
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3/data
+      - --admin-token-file=/etc/influxdb3/admin-token.json
+      # Let the healthcheck probe /health without a token; everything else requires auth.
+      - --disable-authz=health,ping
+    ports:
+      - "${INFLUXDB3_PORT:-8181}:8181"
+    volumes:
+      - influxdb3-data:/var/lib/influxdb3
+      # :z relabels the file for SELinux hosts (e.g. Fedora); harmless elsewhere.
+      - ./docker/influxdb3/secrets/admin-token.json:/etc/influxdb3/admin-token.json:ro,z
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:13.0.2
+    depends_on:
+      influxdb3:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run scripts/bootstrap-influxdb.sh first}
+      INFLUXDB3_TOKEN: ${INFLUXDB3_TOKEN:?run scripts/bootstrap-influxdb.sh first}
+      INFLUXDB3_DATABASE: ${INFLUXDB3_DATABASE:-sensors}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro,z
+    restart: unless-stopped
+
+volumes:
+  influxdb3-data:
+  grafana-data:

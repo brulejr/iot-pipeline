@@ -1,0 +1,12 @@
+# Normalize line endings on commit; check out with the platform's convention.
+* text=auto
+
+# The POSIX start script must stay LF even on Windows checkouts.
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows batch files must stay CRLF; cmd.exe mishandles LF-only scripts.
+*.bat text eol=crlf
+
+# Never touch binaries.
+*.jar binary

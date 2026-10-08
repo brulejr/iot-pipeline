@@ -1,0 +1,17 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB 3
+    uid: influxdb3
+    type: influxdb
+    access: proxy
+    url: http://influxdb3:8181
+    isDefault: true
+    jsonData:
+      version: SQL
+      dbName: ${INFLUXDB3_DATABASE}
+      httpMode: POST
+      # InfluxDB is reached over the compose network without TLS.
+      insecureGrpc: true
+    secureJsonData:
+      token: ${INFLUXDB3_TOKEN}

@@ -1,0 +1,25 @@
+.gradle/
+build/
+
+# Stray jars stay out, but the Gradle wrapper must be committed so a fresh
+# clone can build without Gradle installed. Order matters: the negation has to
+# follow the broad rule, since the last matching pattern wins.
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+.idea/
+*.iml
+.vscode/
+.kotlin/
+
+# Local secrets
+.env
+.env.*
+docker/influxdb3/secrets/*
+!docker/influxdb3/secrets/.gitkeep
+
+# Claude Code: CLAUDE.md and .claude/ are committed deliberately, but
+# settings.local.json is per-developer and can hold tokens / MCP credentials.
+.claude/settings.local.json
+
+**/resources/application-local.yml

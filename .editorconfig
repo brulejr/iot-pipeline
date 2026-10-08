@@ -1,0 +1,31 @@
+# Shared editor settings. See https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{kt,kts}]
+# 140 rather than IntelliJ's default 120: existing code reaches 130 and this
+# avoids reformatting it just to satisfy the linter.
+max_line_length = 140
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+# Two trailing spaces are a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[*.bat]
+# Must agree with .gitattributes; cmd.exe mishandles LF-only batch files.
+end_of_line = crlf
+
+[gradlew]
+end_of_line = lf
