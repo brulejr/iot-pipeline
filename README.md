@@ -156,19 +156,13 @@ pipeline:
       password: hunter2
 ```
 
-Select a different profile with `PROFILE=<name>`, which looks for
-`application-<name>.yml` instead. A fresh clone has no `application-local.yml`
-at all, so the defaults in `application.yml` apply and nothing breaks.
+A fresh clone has no `application-local.yml` at all, so the defaults in
+`application.yml` apply and nothing breaks.
 
-**Precedence catch.** A property set literally in `application-local.yml`
-overrides the `${...}` placeholder in `application.yml`, which means the
-shorthand environment variable stops working. If `application-local.yml`
-contains `pipeline.ingest.mqtt.url`, then `MQTT_URL` has no effect — override
-with the full property name instead, which outranks every config file:
-
-```bash
-PIPELINE_INGEST_MQTT_URL=tcp://127.0.0.1:1883 ./gradlew bootRun
-```
+`local` is for development only. Deployments select a different profile with
+`PROFILE=<name>` — `prod`, backed by an optional `application-prod.yml` — and
+set anything environment-specific through container environment variables,
+which outrank every config file.
 
 ## Layout
 
