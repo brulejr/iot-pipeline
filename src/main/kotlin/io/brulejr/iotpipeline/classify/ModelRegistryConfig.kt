@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.mongodb.core.MongoOperations
+import tools.jackson.databind.json.JsonMapper
 
 /**
  * Chooses where the model registry lives.
@@ -40,6 +41,7 @@ class ModelRegistryConfig {
     @ConditionalOnProperty("pipeline.model-registry.type", havingValue = "mongo", matchIfMissing = true)
     fun mongoModelRegistry(
         mongo: MongoOperations,
+        jsonMapper: JsonMapper,
         @Value("\${spring.mongodb.uri}") uri: String,
     ): ModelRegistryPort {
         require(!uri.contains("\${")) {
@@ -47,11 +49,12 @@ class ModelRegistryConfig {
                 "variables from .env with `set -a; . ./.env; set +a`, or set the uri in " +
                 "application-local.yml."
         }
-        return MongoModelRegistry(mongo)
+        return MongoModelRegistry(mongo, jsonMapper)
     }
 
     /** Holds models for the lifetime of the process; needs no database. */
     @Bean
     @ConditionalOnProperty("pipeline.model-registry.type", havingValue = "memory")
-    fun inMemoryModelRegistry(): ModelRegistryPort = InMemoryModelRegistry()
+    fun inMemoryModelRegistry(jsonMapper: JsonMapper): ModelRegistryPort =
+        InMemoryModelRegistry(jsonMapper)
 }

@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.classify.api
 
+import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.ModelRegistryPort
 import io.brulejr.iotpipeline.classify.SensorMapping
@@ -43,16 +44,29 @@ class ModelController(private val registry: ModelRegistryPort) {
     /**
      * Replaces a model's sensor mappings. An empty list makes the model unrecognised
      * again, which is the way to undo a curation.
+     *
+     * A mapping naming a field the model's structure does not have is rejected whole,
+     * rather than stored to fail quietly in a later stage.
      */
     @PutMapping("/{fingerprint}/sensors")
     fun curate(
         @PathVariable fingerprint: String,
         @RequestBody request: SensorsUpdateRequest,
-    ): ResponseEntity<ModelRecord> =
-        registry.curate(fingerprint, request.sensors)
-            ?.let { ResponseEntity.ok(it) }
-            ?: ResponseEntity.notFound().build()
+    ): ResponseEntity<Any> = when (val result = registry.curate(fingerprint, request.sensors)) {
+        is CurationResult.Curated -> ResponseEntity.ok(result.model)
+        is CurationResult.ModelNotFound -> ResponseEntity.notFound().build()
+        is CurationResult.UnknownFields -> ResponseEntity.badRequest().body(
+            UnknownFieldsError(
+                message = "Not in this model's structure: " +
+                    result.fields.sorted().joinToString(", "),
+                unknownFields = result.fields.sorted(),
+            ),
+        )
+    }
 }
 
 /** Body of a curation request. */
 data class SensorsUpdateRequest(val sensors: List<SensorMapping> = emptyList())
+
+/** Returned with 400 when a mapping names a field the model does not have. */
+data class UnknownFieldsError(val message: String, val unknownFields: List<String>)

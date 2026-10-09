@@ -9,6 +9,8 @@
 package io.brulejr.iotpipeline.classify
 
 import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
@@ -71,9 +73,58 @@ interface ModelRegistryPort {
 
     /**
      * Replaces a model's sensor mappings, which is how a human makes it recognised.
-     * Returns the updated model, or null if no model has that fingerprint.
+     *
+     * Every mapping must name a field the model's structure actually has. A mapping for
+     * a field that is not there would make the model report itself recognised while
+     * yielding nothing at parse time, and the mistake would surface in a later stage far
+     * from its cause.
      */
-    fun curate(fingerprint: String, sensors: List<SensorMapping>): ModelRecord?
+    fun curate(fingerprint: String, sensors: List<SensorMapping>): CurationResult
+}
+
+/** Outcome of a curation attempt. */
+sealed interface CurationResult {
+
+    data class Curated(val model: ModelRecord) : CurationResult
+
+    /** No model carries the given fingerprint. */
+    data object ModelNotFound : CurationResult
+
+    /** Named fields the model's structure does not contain; nothing was written. */
+    data class UnknownFields(val fields: Set<String>) : CurationResult
+}
+
+/**
+ * Checks [sensors] against [model] and returns the result, writing nothing. Shared by
+ * every [ModelRegistryPort] so the rule cannot differ between implementations.
+ */
+fun validateCuration(
+    model: ModelRecord,
+    sensors: List<SensorMapping>,
+    jsonMapper: JsonMapper,
+): CurationResult? {
+    val known = structureFieldNames(model.structure, jsonMapper)
+    val unknown = sensors.map { it.name }.filterNot { it in known }.toSet()
+    return if (unknown.isEmpty()) null else CurationResult.UnknownFields(unknown)
+}
+
+/**
+ * Field names in a model's structure, at any depth. Depth matters because the structure
+ * mirrors the payload's own nesting, and a nested reading is still a reading.
+ */
+internal fun structureFieldNames(structure: String, jsonMapper: JsonMapper): Set<String> {
+    val names = linkedSetOf<String>()
+    fun walk(node: JsonNode) {
+        when {
+            node.isObject -> node.properties().forEach { (name, child) ->
+                names += name
+                walk(child)
+            }
+            node.isArray -> node.forEach { walk(it) }
+        }
+    }
+    walk(jsonMapper.readTree(structure))
+    return names
 }
 
 /**
@@ -82,7 +133,7 @@ interface ModelRegistryPort {
  *
  * TODO back this with a document store so curation persists.
  */
-class InMemoryModelRegistry : ModelRegistryPort {
+class InMemoryModelRegistry(private val jsonMapper: JsonMapper) : ModelRegistryPort {
 
     private val byFingerprint = ConcurrentHashMap<String, ModelRecord>()
 
@@ -101,6 +152,11 @@ class InMemoryModelRegistry : ModelRegistryPort {
 
     override fun find(fingerprint: String): ModelRecord? = byFingerprint[fingerprint]
 
-    override fun curate(fingerprint: String, sensors: List<SensorMapping>): ModelRecord? =
-        byFingerprint.computeIfPresent(fingerprint) { _, model -> model.copy(sensors = sensors) }
+    override fun curate(fingerprint: String, sensors: List<SensorMapping>): CurationResult {
+        val model = byFingerprint[fingerprint] ?: return CurationResult.ModelNotFound
+        validateCuration(model, sensors, jsonMapper)?.let { return it }
+        val curated = model.copy(sensors = sensors)
+        byFingerprint[fingerprint] = curated
+        return CurationResult.Curated(curated)
+    }
 }

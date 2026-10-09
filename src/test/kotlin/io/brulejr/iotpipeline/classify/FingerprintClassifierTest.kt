@@ -34,7 +34,7 @@ class FingerprintClassifierTest {
 
     @Test
     fun `an unseen structure registers itself as a new model`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
 
         val classification = FingerprintClassifier(registry).classify(reading(tower))
 
@@ -46,7 +46,7 @@ class FingerprintClassifierTest {
     @Test
     fun `a newly discovered model is not recognised until it is curated`() {
         val classification = assertIs<Classification.Unrecognised>(
-            FingerprintClassifier(InMemoryModelRegistry()).classify(reading(tower)),
+            FingerprintClassifier(InMemoryModelRegistry(jsonMapper)).classify(reading(tower)),
         )
 
         assertEquals(FingerprintClassifier.NOT_CURATED, classification.reason)
@@ -54,12 +54,14 @@ class FingerprintClassifierTest {
 
     @Test
     fun `a curated model is recognised`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
         val classifier = FingerprintClassifier(registry)
         val reading = reading(tower)
         // Discovery first, then a human supplies the mappings.
         val discovered = registry.registerIfAbsent(reading)
-        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature")))
+        assertIs<CurationResult.Curated>(
+            registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature"))),
+        )
 
         val classification = assertIs<Classification.Recognised>(classifier.classify(reading))
 
@@ -67,16 +69,64 @@ class FingerprintClassifierTest {
     }
 
     @Test
-    fun `curating an unknown fingerprint changes nothing`() {
-        val registry = InMemoryModelRegistry()
+    fun `curating an unknown fingerprint reports the model missing`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
 
-        assertNull(registry.curate("not-a-fingerprint", listOf(SensorMapping("x", SensorType.ANALOG, "y"))))
+        val result = registry.curate("not-a-fingerprint", listOf(SensorMapping("x", SensorType.ANALOG, "y")))
+
+        assertIs<CurationResult.ModelNotFound>(result)
         assertEquals(0, registry.all().size)
     }
 
     @Test
+    fun `a mapping naming a field the model does not have is rejected`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        val discovered = registry.registerIfAbsent(reading(tower))
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            listOf(
+                SensorMapping("temperature_C", SensorType.ANALOG, "temperature"),
+                SensorMapping("not_a_real_field", SensorType.ANALOG, "temperature"),
+            ),
+        )
+
+        val rejected = assertIs<CurationResult.UnknownFields>(result)
+        assertEquals(setOf("not_a_real_field"), rejected.fields)
+        // Rejected whole: the valid mapping in the same request is not stored either.
+        assertEquals(false, registry.find(discovered.fingerprint)!!.recognised)
+    }
+
+    @Test
+    fun `a rejected curation leaves existing mappings untouched`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        val discovered = registry.registerIfAbsent(reading(tower))
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("humidity", SensorType.ANALOG, "humidity")))
+
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("bogus", SensorType.ANALOG, "temperature")))
+
+        val stored = registry.find(discovered.fingerprint)!!
+        assertEquals(listOf("humidity"), stored.sensors.map { it.name })
+    }
+
+    @Test
+    fun `a field nested inside the structure can be mapped`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        val nested = registry.registerIfAbsent(
+            reading("""{"model":"Probe","id":5,"channel":"A","inner":{"depth_cm":12.0}}"""),
+        )
+
+        val result = registry.curate(
+            nested.fingerprint,
+            listOf(SensorMapping("depth_cm", SensorType.ANALOG, "distance")),
+        )
+
+        assertIs<CurationResult.Curated>(result)
+    }
+
+    @Test
     fun `clearing the mappings makes a model unrecognised again`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
         val classifier = FingerprintClassifier(registry)
         val reading = reading(tower)
         val discovered = registry.registerIfAbsent(reading)
@@ -89,7 +139,7 @@ class FingerprintClassifierTest {
 
     @Test
     fun `two readings of the same structure register one model`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
         val classifier = FingerprintClassifier(registry)
 
         classifier.classify(reading(tower))
@@ -101,7 +151,7 @@ class FingerprintClassifierTest {
 
     @Test
     fun `a different field set registers a second model`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
         val classifier = FingerprintClassifier(registry)
 
         classifier.classify(reading(tower))
@@ -112,7 +162,7 @@ class FingerprintClassifierTest {
 
     @Test
     fun `a curated model whose payload names no device stays unrecognised`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
         val classifier = FingerprintClassifier(registry)
         val anonymous = reading("""{"temp":1.0}""")
         val discovered = registry.registerIfAbsent(anonymous)
@@ -126,7 +176,7 @@ class FingerprintClassifierTest {
 
     @Test
     fun `find returns a registered model and nothing for an unseen fingerprint`() {
-        val registry = InMemoryModelRegistry()
+        val registry = InMemoryModelRegistry(jsonMapper)
         val discovered = registry.registerIfAbsent(reading(tower))
 
         assertEquals(discovered, registry.find(discovered.fingerprint))

@@ -268,6 +268,18 @@ curl -X PUT localhost:5001/api/models/<fingerprint>/sensors \
 for an on/off state, and `classname` is the semantic class that downstream
 publishing maps to a consumer's own vocabulary.
 
+Every `name` must be a field the model's structure actually has, at any depth.
+A request naming one it does not is rejected whole, leaving existing mappings
+untouched:
+
+```json
+{"message":"Not in this model's structure: not_a_real_field",
+ "unknownFields":["not_a_real_field"]}
+```
+
+Without that check a typo would store happily, report the model recognised, and
+yield nothing at parse time — surfacing in a later stage, far from the cause.
+
 The model is recognised from the next reading onwards, and `pipeline.classify`
 says so. An empty `sensors` list undoes it.
 
