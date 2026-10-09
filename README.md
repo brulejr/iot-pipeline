@@ -72,23 +72,32 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 
 | Category | Level | What it shows |
 | --- | --- | --- |
-| `pipeline.ingest` | DEBUG | Every envelope as it leaves the MQTT adapter |
-| `pipeline.unknown` | DEBUG | Readings awaiting promotion, identified or not — currently all of them |
+| `pipeline.ingest` | DEBUG | Every envelope as it leaves the MQTT adapter, with the raw payload |
+| `pipeline.classify` | DEBUG | The model each reading was recognised as, and the rule set that will parse it |
+| `pipeline.unknown` | DEBUG | Readings awaiting promotion — currently all of them |
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
-A healthy stream looks like this, one `ingest` line paired with one `unknown`
-line per reading:
+Each reading produces one line per stage, and each line adds information rather
+than repeating the last — the raw payload appears only on the `ingest` line:
 
 ```
-DEBUG  pipeline.ingest   : received from rtl_433/<host>/events: {"model":"Acurite-Tower",...}
-DEBUG  pipeline.unknown  : unpromoted Acurite-Tower/A/3064 [acurite-tower-v1]
-                           from rtl_433/<host>/events: {...}
+pipeline.ingest   : received from rtl_433/<host>/events: {"model":"Acurite-Tower","id":3064,...}
+pipeline.classify : identified Acurite-Tower/A/3064 as model Acurite-Tower, parsed by acurite-tower-v1
+pipeline.unknown  : awaiting promotion: Acurite-Tower/A/3064 from rtl_433/<host>/events
 ```
 
-A reading whose model is not recognised logs as `unidentified` instead. Drop
-`logging.level.pipeline` to INFO once the storage stage lands. `pipeline.known`
-stays silent until devices can be promoted — expected, not a fault.
+`pipeline.classify` is where to look for which models are flowing. A model with
+no curated rule logs the reason instead, which is how you find candidates for
+new rules:
+
+```
+pipeline.classify : unidentified DSC-Security/2320475: no classification rule recognised the model
+```
+
+Drop `logging.level.pipeline` to INFO once the storage stage lands.
+`pipeline.known` stays silent until devices can be promoted — expected, not a
+fault.
 
 If you see nothing at all, the reading is not reaching the adapter. Check the
 broker and topic first, then confirm message counts are rising:

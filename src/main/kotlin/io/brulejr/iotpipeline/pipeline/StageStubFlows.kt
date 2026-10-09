@@ -38,17 +38,12 @@ class StageStubFlows {
     // recommend the worthwhile ones for promotion.
     @Bean
     fun unknownDeviceStubFlow() = integrationFlow(PipelineChannels.UNKNOWN_DEVICE) {
+        // Only promotion status: the model and the payload are already on the
+        // pipeline.classify and pipeline.ingest lines for this same reading.
         log<Classification>(LoggingHandler.Level.DEBUG, "pipeline.unknown") { message ->
-            when (val classification = message.payload) {
-                // Model recognised, but the device has not been promoted to known.
-                is Classification.Identified ->
-                    "unpromoted ${classification.deviceKey.id} [${classification.parseRuleSetId}] " +
-                        "from ${classification.envelope.origin}: ${classification.envelope.payload}"
-                is Classification.Unidentified ->
-                    "unidentified ${classification.deviceKey?.id ?: "device"} " +
-                        "from ${classification.envelope.origin} (${classification.reason}): " +
-                        "${classification.envelope.payload}"
-            }
+            val classification = message.payload
+            "awaiting promotion: ${classification.deviceKey?.id ?: "unidentified device"} " +
+                "from ${classification.envelope.origin}"
         }
         nullChannel()
     }
