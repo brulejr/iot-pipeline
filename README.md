@@ -260,25 +260,41 @@ curl -X PUT localhost:5001/api/models/<fingerprint>/sensors \
   -d '{"sensors":[
         {"name":"temperature_C","type":"ANALOG","classname":"temperature","friendlyName":"Temperature"},
         {"name":"humidity","type":"ANALOG","classname":"humidity","friendlyName":"Humidity"},
-        {"name":"battery_ok","type":"BINARY","classname":"battery","friendlyName":"Battery"}
+        {"name":"battery_ok","type":"BINARY","classname":"battery","friendlyName":"Battery","inverted":true}
       ]}'
 ```
 
-`name` is the payload field, `type` is `ANALOG` for a measurement or `BINARY`
-for an on/off state, and `classname` is the semantic class that downstream
-publishing maps to a consumer's own vocabulary.
+| Field | Meaning |
+| --- | --- |
+| `name` | The payload field this mapping reads |
+| `type` | `ANALOG` for a measurement, `BINARY` for an on/off state |
+| `classname` | Semantic class downstream publishing maps to a consumer's vocabulary |
+| `friendlyName` | Optional display name |
+| `inverted` | The field's truth is the opposite of what `classname` means to a consumer |
 
-Every `name` must be a field the model's structure actually has, at any depth.
-A request naming one it does not is rejected whole, leaving existing mappings
-untouched:
+`inverted` exists because rtl_433 and Home Assistant disagree on polarity:
+`battery_ok: 1` means the battery is *healthy*, while HA's `battery` class
+treats ON as *low*; `closed: 1` means a contact is *shut*, while `opening`
+treats ON as *open*. Only the person curating the model knows which way round a
+field runs, so it is recorded here rather than guessed at publish time. It
+applies to `BINARY` mappings only.
+
+### What curation rejects
+
+A mapping must name a field the model's structure actually has, at any depth,
+and only a `BINARY` mapping may be inverted. A request breaking either rule is
+refused whole, leaving existing mappings untouched, and reports every problem
+at once rather than one per attempt:
 
 ```json
-{"message":"Not in this model's structure: not_a_real_field",
- "unknownFields":["not_a_real_field"]}
+{"message":"bogus: not a field in this model's structure; humidity: inverted applies only to a BINARY mapping",
+ "problems":[{"field":"bogus","reason":"not a field in this model's structure"},
+             {"field":"humidity","reason":"inverted applies only to a BINARY mapping"}]}
 ```
 
-Without that check a typo would store happily, report the model recognised, and
-yield nothing at parse time — surfacing in a later stage, far from the cause.
+Without those checks a typo would store happily, report the model recognised,
+and yield nothing at parse time — surfacing in a later stage, far from the
+cause.
 
 The model is recognised from the next reading onwards, and `pipeline.classify`
 says so. An empty `sensors` list undoes it.

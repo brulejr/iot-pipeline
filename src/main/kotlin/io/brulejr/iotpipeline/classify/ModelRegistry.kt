@@ -45,12 +45,19 @@ enum class SensorType { ANALOG, BINARY }
  * @property classname the semantic class of the reading, e.g. `temperature`, `humidity`,
  *   `battery`. Downstream publishing maps it to a consumer's own vocabulary.
  * @property friendlyName optional display name for a consumer that wants one.
+ * @property inverted true when the field's truth is the opposite of what [classname]
+ *   means to a consumer. rtl_433 reports `battery_ok: 1` for a healthy battery and
+ *   `closed: 1` for a shut contact, while Home Assistant's `battery` and `opening`
+ *   classes both treat ON as the problem state. Only the person curating the model knows
+ *   this, so it is recorded here rather than guessed at publish time. Meaningless for an
+ *   [SensorType.ANALOG] mapping, and rejected there.
  */
 data class SensorMapping(
     val name: String,
     val type: SensorType,
     val classname: String,
     val friendlyName: String? = null,
+    val inverted: Boolean = false,
 )
 
 /**
@@ -90,9 +97,15 @@ sealed interface CurationResult {
     /** No model carries the given fingerprint. */
     data object ModelNotFound : CurationResult
 
-    /** Named fields the model's structure does not contain; nothing was written. */
-    data class UnknownFields(val fields: Set<String>) : CurationResult
+    /**
+     * The mappings were refused and nothing was written. Carries every problem found,
+     * not just the first, so one request does not have to be fixed a rule at a time.
+     */
+    data class Invalid(val problems: List<CurationProblem>) : CurationResult
 }
+
+/** One thing wrong with a submitted mapping. */
+data class CurationProblem(val field: String, val reason: String)
 
 /**
  * Checks [sensors] against [model] and returns the result, writing nothing. Shared by
@@ -102,10 +115,19 @@ fun validateCuration(
     model: ModelRecord,
     sensors: List<SensorMapping>,
     jsonMapper: JsonMapper,
-): CurationResult? {
+): CurationResult.Invalid? {
     val known = structureFieldNames(model.structure, jsonMapper)
-    val unknown = sensors.map { it.name }.filterNot { it in known }.toSet()
-    return if (unknown.isEmpty()) null else CurationResult.UnknownFields(unknown)
+    val problems = buildList {
+        sensors.forEach { sensor ->
+            if (sensor.name !in known) {
+                add(CurationProblem(sensor.name, "not a field in this model's structure"))
+            }
+            if (sensor.inverted && sensor.type != SensorType.BINARY) {
+                add(CurationProblem(sensor.name, "inverted applies only to a BINARY mapping"))
+            }
+        }
+    }
+    return if (problems.isEmpty()) null else CurationResult.Invalid(problems)
 }
 
 /**

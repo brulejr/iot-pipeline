@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.classify.api
 
+import io.brulejr.iotpipeline.classify.CurationProblem
 import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.ModelRegistryPort
@@ -55,11 +56,10 @@ class ModelController(private val registry: ModelRegistryPort) {
     ): ResponseEntity<Any> = when (val result = registry.curate(fingerprint, request.sensors)) {
         is CurationResult.Curated -> ResponseEntity.ok(result.model)
         is CurationResult.ModelNotFound -> ResponseEntity.notFound().build()
-        is CurationResult.UnknownFields -> ResponseEntity.badRequest().body(
-            UnknownFieldsError(
-                message = "Not in this model's structure: " +
-                    result.fields.sorted().joinToString(", "),
-                unknownFields = result.fields.sorted(),
+        is CurationResult.Invalid -> ResponseEntity.badRequest().body(
+            CurationErrors(
+                message = result.problems.joinToString("; ") { "${it.field}: ${it.reason}" },
+                problems = result.problems,
             ),
         )
     }
@@ -68,5 +68,5 @@ class ModelController(private val registry: ModelRegistryPort) {
 /** Body of a curation request. */
 data class SensorsUpdateRequest(val sensors: List<SensorMapping> = emptyList())
 
-/** Returned with 400 when a mapping names a field the model does not have. */
-data class UnknownFieldsError(val message: String, val unknownFields: List<String>)
+/** Returned with 400 when a submitted mapping is refused. */
+data class CurationErrors(val message: String, val problems: List<CurationProblem>)

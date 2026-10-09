@@ -59,8 +59,10 @@ data class SensorMappingDocument(
     val type: SensorType,
     val classname: String,
     val friendlyName: String?,
+    // Defaulted so documents curated before this field existed still read back.
+    val inverted: Boolean = false,
 ) {
-    fun toMapping() = SensorMapping(name, type, classname, friendlyName)
+    fun toMapping() = SensorMapping(name, type, classname, friendlyName, inverted)
 
     companion object {
         fun of(mapping: SensorMapping) = SensorMappingDocument(
@@ -68,6 +70,7 @@ data class SensorMappingDocument(
             mapping.type,
             mapping.classname,
             mapping.friendlyName,
+            mapping.inverted,
         )
     }
 }

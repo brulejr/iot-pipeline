@@ -91,8 +91,8 @@ class FingerprintClassifierTest {
             ),
         )
 
-        val rejected = assertIs<CurationResult.UnknownFields>(result)
-        assertEquals(setOf("not_a_real_field"), rejected.fields)
+        val rejected = assertIs<CurationResult.Invalid>(result)
+        assertEquals(listOf("not_a_real_field"), rejected.problems.map { it.field })
         // Rejected whole: the valid mapping in the same request is not stored either.
         assertEquals(false, registry.find(discovered.fingerprint)!!.recognised)
     }
@@ -107,6 +107,60 @@ class FingerprintClassifierTest {
 
         val stored = registry.find(discovered.fingerprint)!!
         assertEquals(listOf("humidity"), stored.sensors.map { it.name })
+    }
+
+    @Test
+    fun `a binary mapping may be marked inverted`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        // The shared `tower` fixture carries no battery_ok, so use one that does.
+        val discovered = registry.registerIfAbsent(
+            reading("""{"model":"Acurite-Tower","id":3064,"channel":"A","temperature_C":26.5,"battery_ok":0}"""),
+        )
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            // battery_ok is 1 when healthy, the opposite of what a battery class means.
+            listOf(SensorMapping("battery_ok", SensorType.BINARY, "battery", inverted = true)),
+        )
+
+        val curated = assertIs<CurationResult.Curated>(result)
+        assertEquals(true, curated.model.sensors.single().inverted)
+    }
+
+    @Test
+    fun `mappings are not inverted by default`() {
+        assertEquals(false, SensorMapping("humidity", SensorType.ANALOG, "humidity").inverted)
+    }
+
+    @Test
+    fun `inverting an analog mapping is rejected`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        val discovered = registry.registerIfAbsent(reading(tower))
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature", inverted = true)),
+        )
+
+        val rejected = assertIs<CurationResult.Invalid>(result)
+        assertEquals("inverted applies only to a BINARY mapping", rejected.problems.single().reason)
+    }
+
+    @Test
+    fun `every problem in one request is reported together`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        val discovered = registry.registerIfAbsent(reading(tower))
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            listOf(
+                SensorMapping("bogus", SensorType.BINARY, "battery"),
+                SensorMapping("temperature_C", SensorType.ANALOG, "temperature", inverted = true),
+            ),
+        )
+
+        val rejected = assertIs<CurationResult.Invalid>(result)
+        assertEquals(listOf("bogus", "temperature_C"), rejected.problems.map { it.field })
     }
 
     @Test
