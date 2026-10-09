@@ -9,8 +9,6 @@
 package io.brulejr.iotpipeline.classify.mongo
 
 import io.brulejr.iotpipeline.classify.ModelRecord
-import io.brulejr.iotpipeline.classify.SensorMapping
-import io.brulejr.iotpipeline.classify.SensorType
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.mapping.Document
 import java.time.Instant
@@ -49,28 +47,6 @@ data class ModelDocument(
             structure = model.structure,
             discoveredAt = model.discoveredAt,
             sensors = model.sensors.map { SensorMappingDocument.of(it) },
-        )
-    }
-}
-
-/** Stored shape of a [SensorMapping]. */
-data class SensorMappingDocument(
-    val name: String,
-    val type: SensorType,
-    val classname: String,
-    val friendlyName: String?,
-    // Defaulted so documents curated before this field existed still read back.
-    val inverted: Boolean = false,
-) {
-    fun toMapping() = SensorMapping(name, type, classname, friendlyName, inverted)
-
-    companion object {
-        fun of(mapping: SensorMapping) = SensorMappingDocument(
-            mapping.name,
-            mapping.type,
-            mapping.classname,
-            mapping.friendlyName,
-            mapping.inverted,
         )
     }
 }

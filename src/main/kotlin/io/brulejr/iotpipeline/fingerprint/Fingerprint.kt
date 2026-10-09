@@ -8,8 +8,6 @@
  */
 package io.brulejr.iotpipeline.fingerprint
 
-import io.brulejr.iotpipeline.ingest.SensorEnvelope
-
 /**
  * Three hashes derived from one reading, each answering a different question.
  *
@@ -27,12 +25,4 @@ data class Fingerprint(
     val device: String,
     val model: String,
     val modelStructure: String,
-)
-
-/**
- * A reading and its fingerprints, as it travels from the fingerprint stage onwards.
- */
-data class FingerprintedReading(
-    val envelope: SensorEnvelope,
-    val fingerprint: Fingerprint,
 )

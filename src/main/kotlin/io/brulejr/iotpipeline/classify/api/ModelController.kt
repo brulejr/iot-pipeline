@@ -8,11 +8,9 @@
  */
 package io.brulejr.iotpipeline.classify.api
 
-import io.brulejr.iotpipeline.classify.CurationProblem
 import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.ModelRegistryPort
-import io.brulejr.iotpipeline.classify.SensorMapping
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -64,9 +62,3 @@ class ModelController(private val registry: ModelRegistryPort) {
         )
     }
 }
-
-/** Body of a curation request. */
-data class SensorsUpdateRequest(val sensors: List<SensorMapping> = emptyList())
-
-/** Returned with 400 when a submitted mapping is refused. */
-data class CurationErrors(val message: String, val problems: List<CurationProblem>)
