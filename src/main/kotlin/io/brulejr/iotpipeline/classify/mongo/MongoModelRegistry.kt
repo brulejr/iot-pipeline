@@ -56,6 +56,14 @@ class MongoModelRegistry(
         .find(Query().with(Sort.by(Sort.Direction.ASC, "discoveredAt")), ModelDocument::class.java)
         .map { it.toRecord() }
 
+    override fun insertIfAbsent(model: ModelRecord): Boolean = try {
+        mongo.insert(ModelDocument.of(model))
+        true
+    } catch (_: DuplicateKeyException) {
+        // The fingerprint is the id, so a duplicate means it is already there.
+        false
+    }
+
     override fun find(fingerprint: String): ModelRecord? =
         mongo.findById(fingerprint, ModelDocument::class.java)?.toRecord()
 

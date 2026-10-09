@@ -37,6 +37,9 @@ class InMemoryModelRegistry(private val jsonMapper: JsonMapper) : ModelRegistryP
 
     override fun all(): List<ModelRecord> = byFingerprint.values.sortedBy { it.discoveredAt }
 
+    override fun insertIfAbsent(model: ModelRecord): Boolean =
+        byFingerprint.putIfAbsent(model.fingerprint, model) == null
+
     override fun find(fingerprint: String): ModelRecord? = byFingerprint[fingerprint]
 
     override fun curate(fingerprint: String, sensors: List<SensorMapping>): CurationResult {

@@ -279,6 +279,39 @@ treats ON as *open*. Only the person curating the model knows which way round a
 field runs, so it is recorded here rather than guessed at publish time. It
 applies to `BINARY` mappings only.
 
+### Seeding and backing up curation
+
+Sensor mappings are the only hand-made data in the pipeline; everything else is
+derived from live traffic and rebuilds itself. Emptying the store would lose
+them, so they are kept in `src/main/resources/model-seed.json`, which is read at
+startup.
+
+The file is the same shape as `GET /api/models`, so a backup is an export:
+
+```bash
+curl -s localhost:5001/api/models \
+  | jq '[.[] | select(.recognised) | {fingerprint, source, name, structure, sensors}]' \
+  > src/main/resources/model-seed.json
+```
+
+Seeding is idempotent and never destructive:
+
+| In the store | What a seed does |
+| --- | --- |
+| Model absent | Restored whole, mappings included |
+| Model present, uncurated | Given the file's mappings |
+| Model present, already curated | Left alone |
+
+Curation through the API therefore stays authoritative — a stale seed file
+cannot silently revert it. Point `pipeline.model-seed.location` at a `file:`
+resource to keep the file outside the repository, or set
+`pipeline.model-seed.enabled=false` to skip it.
+
+A seed entry is refused at startup if its fingerprint is not the hash of its own
+structure, or if a mapping names a field that structure does not have. Both are
+ways a hand-edited file would otherwise produce a model that looks curated but
+can never match a reading.
+
 ### What curation rejects
 
 A mapping must name a field the model's structure actually has, at any depth,

@@ -1,0 +1,60 @@
+[
+  {
+    "fingerprint": "75ca26ed8cf93935a53a939152a1f4e2c51a7f1eba18b81cae7f31bfd8f7b12f",
+    "source": "rtl433",
+    "name": "Acurite-Tower",
+    "structure": "{\"battery_ok\":\"number\",\"channel\":\"string\",\"humidity\":\"number\",\"id\":\"number\",\"mic\":\"string\",\"model\":\"string\",\"temperature_C\":\"number\"}",
+    "sensors": [
+      {
+        "name": "temperature_C",
+        "type": "ANALOG",
+        "classname": "temperature",
+        "friendlyName": "Temperature",
+        "inverted": false
+      },
+      {
+        "name": "humidity",
+        "type": "ANALOG",
+        "classname": "humidity",
+        "friendlyName": "Humidity",
+        "inverted": false
+      },
+      {
+        "name": "battery_ok",
+        "type": "BINARY",
+        "classname": "battery",
+        "friendlyName": "Battery",
+        "inverted": true
+      }
+    ]
+  },
+  {
+    "fingerprint": "28ad95a407896fe78a4484bafb2fc0c11e69ecdff5db8713ad45869064e0c123",
+    "source": "rtl433",
+    "name": "DSC-Security",
+    "structure": "{\"battery_ok\":\"number\",\"closed\":\"number\",\"esn\":\"string\",\"event\":\"number\",\"exception\":\"number\",\"id\":\"number\",\"mic\":\"string\",\"model\":\"string\",\"status\":\"number\",\"status_hex\":\"string\",\"tamper\":\"number\",\"xactivity\":\"number\",\"xtamper1\":\"number\",\"xtamper2\":\"number\"}",
+    "sensors": [
+      {
+        "name": "closed",
+        "type": "BINARY",
+        "classname": "opening",
+        "friendlyName": "Contact",
+        "inverted": true
+      },
+      {
+        "name": "tamper",
+        "type": "BINARY",
+        "classname": "tamper",
+        "friendlyName": "Tamper",
+        "inverted": false
+      },
+      {
+        "name": "battery_ok",
+        "type": "BINARY",
+        "classname": "battery",
+        "friendlyName": "Battery",
+        "inverted": true
+      }
+    ]
+  }
+]

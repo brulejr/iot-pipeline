@@ -11,8 +11,6 @@ package io.brulejr.iotpipeline.fingerprint
 import io.brulejr.iotpipeline.ingest.SensorEnvelope
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 
 /**
  * Derives a reading's [Fingerprint].
@@ -29,9 +27,9 @@ class FingerprintService(
         val payload = envelope.payload
         val modelStructure = modelStructure(payload)
         return Fingerprint(
-            event = sha256(canonicalJson(exclude(payload, datafill.excludedEventFields))),
+            event = sha256Hex(canonicalJson(exclude(payload, datafill.excludedEventFields))),
             device = deviceHash(envelope),
-            model = sha256(modelStructure),
+            model = sha256Hex(modelStructure),
             modelStructure = modelStructure,
         )
     }
@@ -46,7 +44,7 @@ class FingerprintService(
         identity.put("model", envelope.payload.stringField("model"))
         identity.put("channel", envelope.payload.stringField("channel"))
         identity.put("id", envelope.payload.stringField("id"))
-        return sha256(jsonMapper.writeValueAsString(identity))
+        return sha256Hex(jsonMapper.writeValueAsString(identity))
     }
 
     /**
@@ -94,8 +92,4 @@ class FingerprintService(
     private fun JsonNode.stringField(name: String): String? =
         get(name)?.takeIf { it.isValueNode }?.asString()
 
-    private fun sha256(input: String): String =
-        MessageDigest.getInstance("SHA-256")
-            .digest(input.toByteArray(StandardCharsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
 }

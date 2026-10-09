@@ -25,6 +25,15 @@ interface ModelRegistryPort {
     /** Every model seen so far, newest discovery last. */
     fun all(): List<ModelRecord>
 
+    /**
+     * Inserts [model] whole, mappings included, unless its fingerprint is already known.
+     * Returns true if it was inserted.
+     *
+     * Exists for restoring a model from a seed file: [registerIfAbsent] builds one from a
+     * live reading, which is not available when the store has been emptied.
+     */
+    fun insertIfAbsent(model: ModelRecord): Boolean
+
     /** The model with this structural fingerprint, or null if it has not been seen. */
     fun find(fingerprint: String): ModelRecord?
 

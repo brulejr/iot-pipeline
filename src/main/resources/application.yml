@@ -56,6 +56,12 @@ pipeline:
   model-registry:
     type: ${MODEL_REGISTRY:mongo}
 
+  # Curated sensor mappings are restored from this file at startup. It never overwrites
+  # curation already in the store, so the API stays authoritative.
+  model-seed:
+    enabled: true
+    location: classpath:model-seed.json
+
   dedupe:
     enabled: true
     # Long enough to span repeated decodes of one transmission, far shorter than a
