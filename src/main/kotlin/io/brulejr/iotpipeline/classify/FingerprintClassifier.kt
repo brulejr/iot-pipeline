@@ -21,7 +21,7 @@ class FingerprintClassifier(private val registry: ModelRegistryPort) : Classific
 
     override fun classify(reading: FingerprintedReading): Classification {
         val model = registry.registerIfAbsent(reading)
-        val deviceKey = DeviceKeys.of(reading.envelope)
+        val deviceKey = DeviceKeyExtractor.from(reading.envelope)
 
         if (!model.recognised) {
             return Classification.Unrecognised(reading, deviceKey, model, NOT_CURATED)
