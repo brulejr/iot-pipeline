@@ -27,6 +27,8 @@ dependencies {
     // Paho is an optional dependency of spring-integration-mqtt, so it must be declared explicitly.
     implementation(libs.paho.mqttv3)
     implementation("tools.jackson.module:jackson-module-kotlin")
+    // Expiring cache for the dedupe window; version managed by Spring Boot.
+    implementation("com.github.ben-manes.caffeine:caffeine")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")

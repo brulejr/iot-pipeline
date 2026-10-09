@@ -38,8 +38,8 @@ class ClassificationFlowTest {
     @Autowired
     lateinit var jsonMapper: JsonMapper
 
-    /** Sends one envelope through the flow and returns what reached the unknown channel. */
-    private fun classifyThroughFlow(json: String): Classification {
+    /** Sends one envelope through the whole flow, returning what reached the end. */
+    private fun throughPipeline(json: String): Classification {
         val captured = mutableListOf<Message<*>>()
         val capture = object : ChannelInterceptor {
             override fun preSend(message: Message<*>, channel: MessageChannel) = message.also { captured += it }
@@ -55,24 +55,24 @@ class ClassificationFlowTest {
     }
 
     @Test
-    fun `a curated model is identified but still routed for recommendation until promoted`() {
-        val classification = assertIs<Classification.Identified>(
-            classifyThroughFlow(
-                """{"time":"2026-10-07 20:00:00","model":"Acurite-Tower","id":1234,"channel":"A","temperature_C":21.5,"humidity":48}""",
-            ),
+    fun `a reading is fingerprinted, registered as a model and routed for recommendation`() {
+        val classification = assertIs<Classification.Unrecognised>(
+            throughPipeline("""{"model":"Acurite-Tower","id":1234,"channel":"A","temperature_C":21.5,"humidity":48}"""),
         )
 
-        assertEquals("Acurite-Tower", classification.model)
-        assertEquals("acurite-tower-v1", classification.parseRuleSetId)
+        assertEquals("Acurite-Tower", classification.model.name)
         assertEquals(DeviceKey("rtl433", "Acurite-Tower/A/1234"), classification.deviceKey)
+        // Nothing is curated, so no model can be parsed yet.
+        assertEquals(FingerprintClassifier.NOT_CURATED, classification.reason)
     }
 
     @Test
-    fun `an uncurated model is routed to the unknown-device channel unidentified`() {
-        val classification = assertIs<Classification.Unidentified>(
-            classifyThroughFlow("""{"time":"2026-10-07 20:00:00","model":"Nexus-TH","id":77,"channel":"C","temperature_C":3.0}"""),
-        )
+    fun `the model structure travels with the reading`() {
+        val classification = throughPipeline("""{"model":"Nexus-TH","id":77,"temperature_C":3.0}""")
 
-        assertEquals(DeviceKey("rtl433", "Nexus-TH/C/77"), classification.deviceKey)
+        assertEquals(
+            """{"id":"number","model":"string","temperature_C":"number"}""",
+            classification.model.structure,
+        )
     }
 }

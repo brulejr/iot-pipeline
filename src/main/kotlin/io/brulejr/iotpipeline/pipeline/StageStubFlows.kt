@@ -25,11 +25,10 @@ class StageStubFlows {
     // write them to InfluxDB. Nothing reaches this channel until promotion exists.
     @Bean
     fun knownDeviceStubFlow() = integrationFlow(PipelineChannels.KNOWN_DEVICE) {
-        log<Classification.Identified>(LoggingHandler.Level.INFO, "pipeline.known") { message ->
-            val identified = message.payload
-            // deviceKey.id already leads with the model, so it is not repeated here.
-            "known ${identified.deviceKey.id} parsed by ${identified.parseRuleSetId}: " +
-                "${identified.envelope.payload}"
+        log<Classification.Recognised>(LoggingHandler.Level.INFO, "pipeline.known") { message ->
+            val recognised = message.payload
+            "known ${recognised.deviceKey.id} as model ${recognised.model.name ?: "unnamed"}, " +
+                "${recognised.model.sensors.size} sensor mapping(s): ${recognised.reading.envelope.payload}"
         }
         nullChannel()
     }
@@ -43,7 +42,7 @@ class StageStubFlows {
         log<Classification>(LoggingHandler.Level.DEBUG, "pipeline.unknown") { message ->
             val classification = message.payload
             "awaiting promotion: ${classification.deviceKey?.id ?: "unidentified device"} " +
-                "from ${classification.envelope.origin}"
+                "from ${classification.reading.envelope.origin}"
         }
         nullChannel()
     }

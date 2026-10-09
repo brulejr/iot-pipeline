@@ -29,6 +29,19 @@ pipeline:
       source: rtl433
       # username/password: set PIPELINE_INGEST_MQTT_USERNAME / PIPELINE_INGEST_MQTT_PASSWORD
 
+  # Fingerprinting derives three hashes per reading: the event (what dedupe compares),
+  # the device (which transmitter), and the model (the payload's structure). Radio
+  # metadata is excluded from both hashes by default; see FingerprintDatafill.
+  fingerprint:
+    enabled: true
+    # excluded-model-fields / excluded-event-fields default to the radio metadata set
+
+  dedupe:
+    enabled: true
+    # Long enough to span repeated decodes of one transmission, far shorter than a
+    # sensor's reporting interval.
+    window: 5s
+
 logging:
   level:
     # Each pipeline stage logs under `pipeline.*` (ingest, known, unknown, errors).

@@ -8,7 +8,7 @@
  */
 package io.brulejr.iotpipeline.classify
 
-import io.brulejr.iotpipeline.ingest.SensorEnvelope
+import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -17,35 +17,43 @@ import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
 
 /**
- * Identifies the device model of every envelope on [PipelineChannels.INGEST].
+ * Identifies the device model of every deduplicated reading.
  */
 @Configuration
 class ClassificationFlowConfig {
 
     @Bean
-    @ConditionalOnMissingBean(ClassificationPort::class)
-    fun ruleBasedClassifier(): ClassificationPort = RuleBasedClassifier(CURATED_CLASSIFICATION_RULES)
+    @ConditionalOnMissingBean(ModelRegistryPort::class)
+    fun modelRegistry(): ModelRegistryPort = InMemoryModelRegistry()
 
     @Bean
-    fun classificationFlow(classifier: ClassificationPort) = integrationFlow(PipelineChannels.INGEST) {
-        transform<SensorEnvelope> { classifier.classify(it) }
-        // Which model a reading was recognised as, and the rule set that will parse it
-        // once the device is promoted. The raw payload is on the pipeline.ingest line
-        // for the same reading, so it is not repeated here.
+    @ConditionalOnMissingBean(ClassificationPort::class)
+    fun fingerprintClassifier(registry: ModelRegistryPort): ClassificationPort =
+        FingerprintClassifier(registry)
+
+    @Bean
+    fun classificationFlow(classifier: ClassificationPort) = integrationFlow(PipelineChannels.DEDUPED) {
+        transform<FingerprintedReading> { classifier.classify(it) }
+        // Which model a reading was matched to, and whether that model can be parsed.
+        // The raw payload is on the pipeline.ingest line for the same reading.
         log<Classification>(LoggingHandler.Level.DEBUG, "pipeline.classify") { message ->
-            when (val classification = message.payload) {
-                is Classification.Identified ->
-                    "identified ${classification.deviceKey.id} as model ${classification.model}, " +
-                        "parsed by ${classification.parseRuleSetId}"
-                is Classification.Unidentified ->
-                    "unidentified ${classification.deviceKey?.id ?: "device"}: ${classification.reason}"
+            val classification = message.payload
+            val model = classification.model
+            val name = model.name ?: "unnamed"
+            val device = classification.deviceKey?.id ?: "unidentified device"
+            when (classification) {
+                is Classification.Recognised ->
+                    "recognised $device as $name [${model.fingerprint.take(12)}], " +
+                        "${model.sensors.size} sensor mapping(s)"
+                is Classification.Unrecognised ->
+                    "unrecognised $device, model $name [${model.fingerprint.take(12)}]: " +
+                        classification.reason
             }
         }
         // TODO stage 3: branch on whether this device has been promoted to known,
-        // sending promoted devices to PipelineChannels.KNOWN_DEVICE to be parsed with
-        // their model's rule set. Promotion is a manual step that does not exist yet,
-        // so no device is known and every reading - model recognised or not - goes to
-        // the recommendation engine, which works on raw payloads.
+        // sending promoted readings to PipelineChannels.KNOWN_DEVICE to be parsed with
+        // their model's sensor mappings. Promotion is a manual step that does not exist
+        // yet, so every reading goes to the recommendation engine.
         channel(PipelineChannels.UNKNOWN_DEVICE)
     }
 }

@@ -8,50 +8,52 @@
  */
 package io.brulejr.iotpipeline.classify
 
-import io.brulejr.iotpipeline.ingest.SensorEnvelope
+import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
 
 /**
  * Port for the classification stage: identifies the model of the device that sent a
- * reading, and so which rule set parses its payload.
+ * reading, and so which sensor mappings parse its payload.
  *
- * Identifying the model is the whole of this stage. Whether the device is *known* is
- * a separate question answered by promotion, which is a manual step.
+ * Identifying the model is the whole of this stage. Whether the *device* is known is a
+ * separate question answered by promotion, which is a manual step.
  *
- * Implementations are swappable (a rules engine, hand-rolled pattern matching, ...).
- * The envelope's source is one input; rules may be cross-source or source-aligned.
- * Register an implementation as a bean to replace [RuleBasedClassifier].
+ * Implementations are swappable. Register one as a bean to replace
+ * [FingerprintClassifier].
  */
 fun interface ClassificationPort {
-    fun classify(envelope: SensorEnvelope): Classification
+    fun classify(reading: FingerprintedReading): Classification
 }
 
 /** Stable identity of a physical device as seen by one source. */
 data class DeviceKey(val source: String, val id: String)
 
+/**
+ * The outcome of classification. A model is always attached, since an unseen payload
+ * structure registers itself as a new model.
+ */
 sealed interface Classification {
-    val envelope: SensorEnvelope
+    val reading: FingerprintedReading
     val deviceKey: DeviceKey?
+    val model: ModelRecord
 
     /**
-     * The device's model was recognised. [parseRuleSetId] names the rule set that
-     * parses payloads from this model, applied once the device has been promoted to
-     * known. Recognising the model does not make the device known.
+     * The model carries curated sensor mappings, so this reading can be parsed once its
+     * device has been promoted to known.
      */
-    data class Identified(
-        override val envelope: SensorEnvelope,
+    data class Recognised(
+        override val reading: FingerprintedReading,
         override val deviceKey: DeviceKey,
-        val model: String,
-        val parseRuleSetId: String,
+        override val model: ModelRecord,
     ) : Classification
 
     /**
-     * No rule recognised the model. The reading still goes to the recommendation
-     * engine, which looks for patterns in raw payloads. [deviceKey] is null when the
-     * payload carries too little to identify a device at all.
+     * The model is registered but cannot be parsed yet. The reading still goes to the
+     * recommendation engine, which looks for patterns in raw payloads.
      */
-    data class Unidentified(
-        override val envelope: SensorEnvelope,
+    data class Unrecognised(
+        override val reading: FingerprintedReading,
         override val deviceKey: DeviceKey?,
+        override val model: ModelRecord,
         val reason: String,
     ) : Classification
 }

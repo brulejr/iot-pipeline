@@ -17,7 +17,8 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | Stage | State |
 | --- | --- |
 | 1. Ingestion (MQTT) | Working |
-| 2. Classification | Working — a curated Kotlin rule set identifies device models and resolves their parse rule set |
+| 1.5 Fingerprint & dedupe | Working — three hashes per reading; repeated deliveries of one transmission are dropped |
+| 2. Classification | Working — models identified by structural fingerprint and auto-registered; recognising one needs curated sensor mappings |
 | 3. Known/unknown branch | Stub |
 | 4. Recommendation engine | Stub |
 | 5. Storage (InfluxDB) | Stub — the container runs, but nothing writes to it yet |
@@ -73,7 +74,9 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | Category | Level | What it shows |
 | --- | --- | --- |
 | `pipeline.ingest` | DEBUG | Every envelope as it leaves the MQTT adapter, with the raw payload |
-| `pipeline.classify` | DEBUG | The model each reading was recognised as, and the rule set that will parse it |
+| `pipeline.fingerprint` | DEBUG | The event, device and model hashes derived for the reading |
+| `pipeline.dedupe` | DEBUG | Readings discarded as duplicates |
+| `pipeline.classify` | DEBUG | The model each reading was matched to, and whether it can be parsed |
 | `pipeline.unknown` | DEBUG | Readings awaiting promotion — currently all of them |
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
@@ -82,18 +85,20 @@ Each reading produces one line per stage, and each line adds information rather
 than repeating the last — the raw payload appears only on the `ingest` line:
 
 ```
-pipeline.ingest   : received from rtl_433/<host>/events: {"model":"Acurite-Tower","id":3064,...}
-pipeline.classify : identified Acurite-Tower/A/3064 as model Acurite-Tower, parsed by acurite-tower-v1
-pipeline.unknown  : awaiting promotion: Acurite-Tower/A/3064 from rtl_433/<host>/events
+pipeline.ingest      : received from rtl_433/<host>/events: {"model":"Acurite-Tower","id":3064,...}
+pipeline.fingerprint : event=05996555a7aa device=baf1bfc9bc94 model=75ca26ed8cf9
+pipeline.classify    : unrecognised Acurite-Tower/A/3064, model Acurite-Tower [75ca26ed8cf9]: model has no curated sensor mappings
+pipeline.unknown     : awaiting promotion: Acurite-Tower/A/3064 from rtl_433/<host>/events
 ```
 
-`pipeline.classify` is where to look for which models are flowing. A model with
-no curated rule logs the reason instead, which is how you find candidates for
-new rules:
+A reading dropped as a duplicate stops after `pipeline.dedupe`:
 
 ```
-pipeline.classify : unidentified DSC-Security/2320475: no classification rule recognised the model
+pipeline.dedupe      : duplicate of device=baf1bfc9bc94 from rtl_433/<host>/events, discarded
 ```
+
+`pipeline.classify` is where to look for which models are flowing, and which
+still need sensor mappings.
 
 Drop `logging.level.pipeline` to INFO once the storage stage lands.
 `pipeline.known` stays silent until devices can be promoted — expected, not a
@@ -193,37 +198,33 @@ Each stage sits behind a port interface — `ClassificationPort`, for example �
 with a default implementation registered via `@ConditionalOnMissingBean`. Real
 implementations can be dropped in without touching the flow wiring.
 
-### Classification rules
+### Fingerprinting and model identification
 
-Classification identifies the device *model*, which resolves the rule set that
-parses its payload. It does not decide whether a device is *known* — that is
-promotion, a manual step, and nothing is promoted yet.
+Every reading is fingerprinted right after ingestion, producing three hashes:
+the **event** (the reading itself), the **device** (the transmitter), and the
+**model** (the payload's structure, with values replaced by the name of their
+type). Radio metadata such as `rssi`, `snr` and `time` is excluded from the
+event and model hashes, since it describes neither the reading nor the kind of
+device that sent it.
 
-Rules are type-safe Kotlin, curated by hand in `classify/CuratedRules.kt`:
+**Dedupe** remembers each device's last event hash for `pipeline.dedupe.window`
+and drops a repeat, so rtl_433's repeated decodes of one transmission are
+counted once.
 
-```kotlin
-val CURATED_CLASSIFICATION_RULES: List<ClassificationRule> = classificationRules {
-    // rtl_433 reports the model in the payload, so matching it identifies the device.
-    rtl433("Acurite-Tower", parseRuleSetId = "acurite-tower-v1", "temperature_C", "humidity")
-}
-```
+**Classification** identifies the model from its structural hash rather than
+from the self-reported `model` field, so two firmware revisions reporting
+different fields are two models under one name. Models register themselves on
+first sighting — the catalogue builds from live traffic, with nothing written
+out in advance.
 
-The trailing field names are required to be present, so a truncated decode is
-not claimed by the rule. For a source that does not self-report a model, use the
-general form:
+Recognising a model takes a human: someone supplies its sensor mappings, saying
+how to read values out of its payload. Until then the model is registered but
+not recognised, and `pipeline.classify` says so. That curation is the only
+hand-maintained input to the stage.
 
-```kotlin
-rule("WeatherStation", parseRuleSetId = "weather-station-v1") {
-    source("weather-station-rest")
-    requireFields("stationId", "observedAt")
-    where { it.payload.get("stationId")?.asString()?.startsWith("KBOS") == true }
-}
-```
-
-Rules evaluate in declaration order and the first match wins, so put narrow
-rules before broad ones. Device identity comes from `model`/`channel`/`id`
-rather than the receiving antenna, so one transmitter heard by two receivers
-yields one key.
+The registry is in memory, behind `ModelRegistryPort`. It rebuilds from traffic
+on restart, and curated mappings do not survive one, so nothing stays
+recognised yet.
 
 ## Development
 
