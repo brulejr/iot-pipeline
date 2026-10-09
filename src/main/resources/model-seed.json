@@ -4,6 +4,7 @@
     "source": "rtl433",
     "name": "Acurite-Tower",
     "structure": "{\"battery_ok\":\"number\",\"channel\":\"string\",\"humidity\":\"number\",\"id\":\"number\",\"mic\":\"string\",\"model\":\"string\",\"temperature_C\":\"number\"}",
+    "category": "weather",
     "sensors": [
       {
         "name": "temperature_C",
@@ -33,6 +34,7 @@
     "source": "rtl433",
     "name": "DSC-Security",
     "structure": "{\"battery_ok\":\"number\",\"closed\":\"number\",\"esn\":\"string\",\"event\":\"number\",\"exception\":\"number\",\"id\":\"number\",\"mic\":\"string\",\"model\":\"string\",\"status\":\"number\",\"status_hex\":\"string\",\"tamper\":\"number\",\"xactivity\":\"number\",\"xtamper1\":\"number\",\"xtamper2\":\"number\"}",
+    "category": "security",
     "sensors": [
       {
         "name": "closed",

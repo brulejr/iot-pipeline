@@ -67,15 +67,19 @@ class MongoModelRegistry(
     override fun find(fingerprint: String): ModelRecord? =
         mongo.findById(fingerprint, ModelDocument::class.java)?.toRecord()
 
-    override fun curate(fingerprint: String, sensors: List<SensorMapping>): CurationResult {
+    override fun curate(fingerprint: String, category: String, sensors: List<SensorMapping>): CurationResult {
         // Read first: the structure is needed to validate the mappings, and rejecting
         // them must leave the stored document untouched.
         val model = find(fingerprint) ?: return CurationResult.ModelNotFound
-        validateCuration(model, sensors, jsonMapper)?.let { return it }
+        validateCuration(model, category, sensors, jsonMapper)?.let { return it }
 
         val updated = mongo.update(ModelDocument::class.java)
             .matching(Query(Criteria.where("_id").`is`(fingerprint)))
-            .apply(Update().set("sensors", sensors.map { SensorMappingDocument.of(it) }))
+            .apply(
+                Update()
+                    .set("category", category)
+                    .set("sensors", sensors.map { SensorMappingDocument.of(it) }),
+            )
             .first()
         // Deleted between the read and the write.
         if (updated.matchedCount == 0L) return CurationResult.ModelNotFound

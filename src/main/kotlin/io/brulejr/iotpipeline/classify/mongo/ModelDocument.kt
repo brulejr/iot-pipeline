@@ -28,6 +28,8 @@ data class ModelDocument(
     val name: String?,
     val structure: String,
     val discoveredAt: Instant,
+    // Defaulted so documents stored before this field existed still read back.
+    val category: String = ModelRecord.UNCATEGORISED,
     val sensors: List<SensorMappingDocument> = emptyList(),
 ) {
     fun toRecord() = ModelRecord(
@@ -36,6 +38,7 @@ data class ModelDocument(
         name = name,
         structure = structure,
         discoveredAt = discoveredAt,
+        category = category,
         sensors = sensors.map { it.toMapping() },
     )
 
@@ -46,6 +49,7 @@ data class ModelDocument(
             name = model.name,
             structure = model.structure,
             discoveredAt = model.discoveredAt,
+            category = model.category,
             sensors = model.sensors.map { SensorMappingDocument.of(it) },
         )
     }

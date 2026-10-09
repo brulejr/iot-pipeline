@@ -17,11 +17,17 @@ import tools.jackson.databind.json.JsonMapper
  */
 fun validateCuration(
     model: ModelRecord,
+    category: String,
     sensors: List<SensorMapping>,
     jsonMapper: JsonMapper,
 ): CurationResult.Invalid? {
     val known = structureFieldNames(model.structure, jsonMapper)
     val problems = buildList {
+        if (category.isBlank()) {
+            add(CurationProblem("category", "must not be blank"))
+        } else if (category == ModelRecord.UNCATEGORISED) {
+            add(CurationProblem("category", "must say what the model is, not '${ModelRecord.UNCATEGORISED}'"))
+        }
         sensors.forEach { sensor ->
             if (sensor.name !in known) {
                 add(CurationProblem(sensor.name, "not a field in this model's structure"))

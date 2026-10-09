@@ -42,10 +42,10 @@ class InMemoryModelRegistry(private val jsonMapper: JsonMapper) : ModelRegistryP
 
     override fun find(fingerprint: String): ModelRecord? = byFingerprint[fingerprint]
 
-    override fun curate(fingerprint: String, sensors: List<SensorMapping>): CurationResult {
+    override fun curate(fingerprint: String, category: String, sensors: List<SensorMapping>): CurationResult {
         val model = byFingerprint[fingerprint] ?: return CurationResult.ModelNotFound
-        validateCuration(model, sensors, jsonMapper)?.let { return it }
-        val curated = model.copy(sensors = sensors)
+        validateCuration(model, category, sensors, jsonMapper)?.let { return it }
+        val curated = model.copy(category = category, sensors = sensors)
         byFingerprint[fingerprint] = curated
         return CurationResult.Curated(curated)
     }

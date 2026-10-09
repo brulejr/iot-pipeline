@@ -20,11 +20,15 @@ import io.brulejr.iotpipeline.classify.SensorMapping
  * @property structure the canonical payload structure. Carried because a seed has to be
  *   able to restore a model the pipeline has not seen since the store was emptied, and
  *   a model cannot be curated before it exists.
+ * @property category what kind of thing the model is. Required and undefaulted, so a
+ *   seed file missing it fails at startup rather than restoring models that claim to be
+ *   curated while saying nothing about what they are.
  */
 data class ModelSeed(
     val fingerprint: String,
     val source: String,
     val name: String? = null,
     val structure: String,
+    val category: String,
     val sensors: List<SensorMapping> = emptyList(),
 )

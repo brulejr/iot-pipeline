@@ -252,17 +252,27 @@ is recognised:
 curl -s localhost:5001/api/models | jq
 ```
 
-Then supply the sensor mappings for one, keyed by its structural fingerprint:
+Then curate one, keyed by its structural fingerprint. A curation says what the
+model *is* and how to read it, both at once:
 
 ```bash
-curl -X PUT localhost:5001/api/models/<fingerprint>/sensors \
+curl -X PUT localhost:5001/api/models/<fingerprint>/curation \
   -H 'Content-Type: application/json' \
-  -d '{"sensors":[
+  -d '{"category":"weather",
+       "sensors":[
         {"name":"temperature_C","type":"ANALOG","classname":"temperature","friendlyName":"Temperature"},
         {"name":"humidity","type":"ANALOG","classname":"humidity","friendlyName":"Humidity"},
         {"name":"battery_ok","type":"BINARY","classname":"battery","friendlyName":"Battery","inverted":true}
       ]}'
 ```
+
+`category` is what kind of thing the model is — `weather`, `security`, and so on.
+It is a free string rather than a closed set, because the band carries new device
+types faster than an enum could be extended. A model registers itself from live
+traffic, where nobody knows the answer, so it starts as `uncategorised` until
+someone curates it.
+
+Each sensor mapping carries:
 
 | Field | Meaning |
 | --- | --- |
@@ -290,7 +300,7 @@ The file is the same shape as `GET /api/models`, so a backup is an export:
 
 ```bash
 curl -s localhost:5001/api/models \
-  | jq '[.[] | select(.recognised) | {fingerprint, source, name, structure, sensors}]' \
+  | jq '[.[] | select(.recognised) | {fingerprint, source, name, structure, category, sensors}]' \
   > src/main/resources/model-seed.json
 ```
 
@@ -307,15 +317,17 @@ cannot silently revert it. Point `pipeline.model-seed.location` at a `file:`
 resource to keep the file outside the repository, or set
 `pipeline.model-seed.enabled=false` to skip it.
 
-A seed entry is refused at startup if its fingerprint is not the hash of its own
-structure, or if a mapping names a field that structure does not have. Both are
+A seed entry is refused at startup if it has no `category`, if its fingerprint is
+not the hash of its own structure, or if a mapping names a field that structure
+does not have. Both are
 ways a hand-edited file would otherwise produce a model that looks curated but
 can never match a reading.
 
 ### What curation rejects
 
-A mapping must name a field the model's structure actually has, at any depth,
-and only a `BINARY` mapping may be inverted. A request breaking either rule is
+A curation must give a real `category` — not blank, and not the `uncategorised`
+placeholder. A mapping must name a field the model's structure actually has, at
+any depth, and only a `BINARY` mapping may be inverted. A request breaking either rule is
 refused whole, leaving existing mappings untouched, and reports every problem
 at once rather than one per attempt:
 

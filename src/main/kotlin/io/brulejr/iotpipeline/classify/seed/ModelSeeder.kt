@@ -63,7 +63,9 @@ class ModelSeeder(
                 // Curation through the API wins; a seed only fills a gap.
                 existing.recognised -> leftAlone++
                 else -> {
-                    when (val result = registry.curate(seed.fingerprint, seed.sensors)) {
+                    when (
+                        val result = registry.curate(seed.fingerprint, seed.category, seed.sensors)
+                    ) {
                         is CurationResult.Curated -> curated++
                         else -> error("Seed for ${seed.describe()} was refused: $result")
                     }
@@ -93,7 +95,7 @@ class ModelSeeder(
             "Seed for ${seed.describe()} has fingerprint ${seed.fingerprint}, but its " +
                 "structure hashes to $expected. No reading would ever match it."
         }
-        validateCuration(seed.toRecord(), seed.sensors, jsonMapper)?.let { invalid ->
+        validateCuration(seed.toRecord(), seed.category, seed.sensors, jsonMapper)?.let { invalid ->
             error(
                 "Seed for ${seed.describe()} is invalid: " +
                     invalid.problems.joinToString("; ") { "${it.field}: ${it.reason}" },
@@ -110,6 +112,7 @@ class ModelSeeder(
         structure = structure,
         // The original sighting is not in the file; this is when it was restored.
         discoveredAt = Instant.now(),
+        category = category,
         sensors = sensors,
     )
 }

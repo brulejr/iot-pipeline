@@ -39,7 +39,7 @@ class ModelSeederTest {
         fp: String = fingerprint,
         sensors: String = """[{"name":"temperature_C","type":"ANALOG","classname":"temperature"}]""",
     ) = """[{"fingerprint":"$fp","source":"rtl433","name":"Acurite-Tower",
-            "structure":${jsonMapper.writeValueAsString(structure)},"sensors":$sensors}]"""
+            "structure":${jsonMapper.writeValueAsString(structure)},"category":"weather","sensors":$sensors}]"""
 
     /** Serves one in-memory document, so the test needs no file on disk. */
     private fun loaderOf(json: String?) = object : ResourceLoader {
@@ -63,6 +63,7 @@ class ModelSeederTest {
         name = "Acurite-Tower",
         structure = structure,
         discoveredAt = Instant.now(),
+        category = "weather",
         sensors = sensors,
     )
 
@@ -159,7 +160,7 @@ class ModelSeederTest {
         // `recognised` is computed and appears in GET /api/models output.
         val exported = """[{"fingerprint":"$fingerprint","source":"rtl433","name":"Acurite-Tower",
             "structure":${jsonMapper.writeValueAsString(structure)},
-            "discoveredAt":"2026-10-09T10:00:00Z","recognised":true,
+            "category":"weather","discoveredAt":"2026-10-09T10:00:00Z","recognised":true,
             "sensors":[{"name":"humidity","type":"ANALOG","classname":"humidity","friendlyName":"Humidity","inverted":false}]}]"""
 
         val outcome = seeder(registry, exported).seed()

@@ -15,6 +15,11 @@ import java.time.Instant
  * structure rather than by its self-reported name. Two firmware revisions reporting
  * different fields are different models even under one name.
  *
+ * @property category what kind of thing this model is, e.g. `weather` or `security`.
+ *   A free string rather than a closed set: the band carries device types faster than
+ *   an enum could be extended. A model registers itself from live traffic, where nobody
+ *   knows the answer, so it starts [UNCATEGORISED] and is given a real category when a
+ *   human curates it.
  * @property sensors how to read values out of this model's payload. Curated by hand;
  *   until it is non-empty the model is registered but not recognised, so its readings
  *   cannot be parsed.
@@ -25,7 +30,13 @@ data class ModelRecord(
     val name: String?,
     val structure: String,
     val discoveredAt: Instant,
+    val category: String = UNCATEGORISED,
     val sensors: List<SensorMapping> = emptyList(),
 ) {
     val recognised: Boolean get() = sensors.isNotEmpty()
+
+    companion object {
+        /** Stands in until someone says what the model is. Not a valid curated value. */
+        const val UNCATEGORISED = "uncategorised"
+    }
 }

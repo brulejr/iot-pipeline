@@ -41,17 +41,19 @@ class ModelController(private val registry: ModelRegistryPort) {
             ?: ResponseEntity.notFound().build()
 
     /**
-     * Replaces a model's sensor mappings. An empty list makes the model unrecognised
-     * again, which is the way to undo a curation.
+     * Records what a human decides about a model: its category and its sensor mappings.
      *
-     * A mapping naming a field the model's structure does not have is rejected whole,
-     * rather than stored to fail quietly in a later stage.
+     * Both are set together because they are one act of curation. A blank or placeholder
+     * category, or a mapping naming a field the model's structure does not have, is
+     * rejected whole rather than stored to fail quietly in a later stage.
      */
-    @PutMapping("/{fingerprint}/sensors")
+    @PutMapping("/{fingerprint}/curation")
     fun curate(
         @PathVariable fingerprint: String,
-        @RequestBody request: SensorsUpdateRequest,
-    ): ResponseEntity<Any> = when (val result = registry.curate(fingerprint, request.sensors)) {
+        @RequestBody request: CurationRequest,
+    ): ResponseEntity<Any> = when (
+        val result = registry.curate(fingerprint, request.category, request.sensors)
+    ) {
         is CurationResult.Curated -> ResponseEntity.ok(result.model)
         is CurationResult.ModelNotFound -> ResponseEntity.notFound().build()
         is CurationResult.Invalid -> ResponseEntity.badRequest().body(
