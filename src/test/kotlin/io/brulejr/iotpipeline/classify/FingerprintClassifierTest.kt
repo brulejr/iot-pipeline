@@ -59,7 +59,7 @@ class FingerprintClassifierTest {
         val reading = reading(tower)
         // Discovery first, then a human supplies the mappings.
         val discovered = registry.registerIfAbsent(reading)
-        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", "temperature", "C")))
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature")))
 
         val classification = assertIs<Classification.Recognised>(classifier.classify(reading))
 
@@ -70,7 +70,7 @@ class FingerprintClassifierTest {
     fun `curating an unknown fingerprint changes nothing`() {
         val registry = InMemoryModelRegistry()
 
-        assertNull(registry.curate("not-a-fingerprint", listOf(SensorMapping("x", "y"))))
+        assertNull(registry.curate("not-a-fingerprint", listOf(SensorMapping("x", SensorType.ANALOG, "y"))))
         assertEquals(0, registry.all().size)
     }
 
@@ -80,7 +80,7 @@ class FingerprintClassifierTest {
         val classifier = FingerprintClassifier(registry)
         val reading = reading(tower)
         val discovered = registry.registerIfAbsent(reading)
-        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", "temperature")))
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature")))
 
         registry.curate(discovered.fingerprint, emptyList())
 
@@ -116,7 +116,7 @@ class FingerprintClassifierTest {
         val classifier = FingerprintClassifier(registry)
         val anonymous = reading("""{"temp":1.0}""")
         val discovered = registry.registerIfAbsent(anonymous)
-        registry.curate(discovered.fingerprint, listOf(SensorMapping("temp", "temperature")))
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("temp", SensorType.ANALOG, "temperature")))
 
         val classification = assertIs<Classification.Unrecognised>(classifier.classify(anonymous))
 

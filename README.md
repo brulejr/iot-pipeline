@@ -258,10 +258,15 @@ Then supply the sensor mappings for one, keyed by its structural fingerprint:
 curl -X PUT localhost:5001/api/models/<fingerprint>/sensors \
   -H 'Content-Type: application/json' \
   -d '{"sensors":[
-        {"field":"temperature_C","sensorType":"temperature","unit":"C"},
-        {"field":"humidity","sensorType":"humidity","unit":"%"}
+        {"name":"temperature_C","type":"ANALOG","classname":"temperature","friendlyName":"Temperature"},
+        {"name":"humidity","type":"ANALOG","classname":"humidity","friendlyName":"Humidity"},
+        {"name":"battery_ok","type":"BINARY","classname":"battery","friendlyName":"Battery"}
       ]}'
 ```
+
+`name` is the payload field, `type` is `ANALOG` for a measurement or `BINARY`
+for an on/off state, and `classname` is the semantic class that downstream
+publishing maps to a consumer's own vocabulary.
 
 The model is recognised from the next reading onwards, and `pipeline.classify`
 says so. An empty `sensors` list undoes it.

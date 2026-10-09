@@ -32,13 +32,23 @@ data class ModelRecord(
     val recognised: Boolean get() = sensors.isNotEmpty()
 }
 
+/** How a payload field is read: a measurement, or an on/off state. */
+enum class SensorType { ANALOG, BINARY }
+
 /**
- * Maps a field in a model's payload to a reading the rest of the pipeline understands.
+ * Maps one field in a model's payload to a reading the rest of the pipeline understands.
+ *
+ * @property name the payload field this mapping reads, e.g. `temperature_C`.
+ * @property type whether the field carries a measurement or an on/off state.
+ * @property classname the semantic class of the reading, e.g. `temperature`, `humidity`,
+ *   `battery`. Downstream publishing maps it to a consumer's own vocabulary.
+ * @property friendlyName optional display name for a consumer that wants one.
  */
 data class SensorMapping(
-    val field: String,
-    val sensorType: String,
-    val unit: String? = null,
+    val name: String,
+    val type: SensorType,
+    val classname: String,
+    val friendlyName: String? = null,
 )
 
 /**

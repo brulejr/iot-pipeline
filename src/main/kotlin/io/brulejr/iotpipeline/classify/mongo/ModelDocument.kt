@@ -10,6 +10,7 @@ package io.brulejr.iotpipeline.classify.mongo
 
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.SensorMapping
+import io.brulejr.iotpipeline.classify.SensorType
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.mapping.Document
 import java.time.Instant
@@ -54,17 +55,19 @@ data class ModelDocument(
 
 /** Stored shape of a [SensorMapping]. */
 data class SensorMappingDocument(
-    val field: String,
-    val sensorType: String,
-    val unit: String?,
+    val name: String,
+    val type: SensorType,
+    val classname: String,
+    val friendlyName: String?,
 ) {
-    fun toMapping() = SensorMapping(field, sensorType, unit)
+    fun toMapping() = SensorMapping(name, type, classname, friendlyName)
 
     companion object {
         fun of(mapping: SensorMapping) = SensorMappingDocument(
-            mapping.field,
-            mapping.sensorType,
-            mapping.unit,
+            mapping.name,
+            mapping.type,
+            mapping.classname,
+            mapping.friendlyName,
         )
     }
 }
