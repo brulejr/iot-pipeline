@@ -38,23 +38,41 @@ class ClassificationFlowTest {
     @Autowired
     lateinit var jsonMapper: JsonMapper
 
-    @Test
-    fun `rtl_433 reading without rules is routed to the unknown-device channel`() {
+    /** Sends one envelope through the flow and returns what reached the unknown channel. */
+    private fun classifyThroughFlow(json: String): Classification {
         val captured = mutableListOf<Message<*>>()
         val capture = object : ChannelInterceptor {
             override fun preSend(message: Message<*>, channel: MessageChannel) = message.also { captured += it }
         }
         unknownDevice.addInterceptor(capture)
         try {
-            val payload = jsonMapper.readTree(
-                """{"time":"2026-10-07 20:00:00","model":"Acurite-Tower","id":1234,"channel":"A","temperature_C":21.5}""",
-            )
+            val payload = jsonMapper.readTree(json)
             ingest.send(MessageBuilder.withPayload(SensorEnvelope("rtl433", "rtl_433/pi/events", Instant.now(), payload)).build())
         } finally {
             unknownDevice.removeInterceptor(capture)
         }
+        return captured.single().payload as Classification
+    }
 
-        val classification = assertIs<Classification.Unknown>(captured.single().payload)
+    @Test
+    fun `a curated model is identified but still routed for recommendation until promoted`() {
+        val classification = assertIs<Classification.Identified>(
+            classifyThroughFlow(
+                """{"time":"2026-10-07 20:00:00","model":"Acurite-Tower","id":1234,"channel":"A","temperature_C":21.5,"humidity":48}""",
+            ),
+        )
+
+        assertEquals("Acurite-Tower", classification.model)
+        assertEquals("acurite-tower-v1", classification.parseRuleSetId)
         assertEquals(DeviceKey("rtl433", "Acurite-Tower/A/1234"), classification.deviceKey)
+    }
+
+    @Test
+    fun `an uncurated model is routed to the unknown-device channel unidentified`() {
+        val classification = assertIs<Classification.Unidentified>(
+            classifyThroughFlow("""{"time":"2026-10-07 20:00:00","model":"Nexus-TH","id":77,"channel":"C","temperature_C":3.0}"""),
+        )
+
+        assertEquals(DeviceKey("rtl433", "Nexus-TH/C/77"), classification.deviceKey)
     }
 }

@@ -17,7 +17,7 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | Stage | State |
 | --- | --- |
 | 1. Ingestion (MQTT) | Working |
-| 2. Classification | Port defined; `NoRulesClassifier` marks every reading unknown, keyed by the rtl_433 `model`/`channel`/`id` fields |
+| 2. Classification | Working — a curated Kotlin rule set identifies device models and resolves their parse rule set |
 | 3. Known/unknown branch | Stub |
 | 4. Recommendation engine | Stub |
 | 5. Storage (InfluxDB) | Stub — the container runs, but nothing writes to it yet |
@@ -73,8 +73,8 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | Category | Level | What it shows |
 | --- | --- | --- |
 | `pipeline.ingest` | DEBUG | Every envelope as it leaves the MQTT adapter |
-| `pipeline.unknown` | DEBUG | Readings with no matching rule set — currently all of them |
-| `pipeline.known` | INFO | Readings matched to a curated device |
+| `pipeline.unknown` | DEBUG | Readings awaiting promotion, identified or not — currently all of them |
+| `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
 A healthy stream looks like this, one `ingest` line paired with one `unknown`
@@ -82,13 +82,13 @@ line per reading:
 
 ```
 DEBUG  pipeline.ingest   : received from rtl_433/<host>/events: {"model":"Acurite-Tower",...}
-DEBUG  pipeline.unknown  : unknown Acurite-Tower/A/3064 from rtl_433/<host>/events
-                           (no classification rules configured): {...}
+DEBUG  pipeline.unknown  : unpromoted Acurite-Tower/A/3064 [acurite-tower-v1]
+                           from rtl_433/<host>/events: {...}
 ```
 
-Drop `logging.level.pipeline` to INFO once the storage stage lands. Until rule
-sets exist, `NoRulesClassifier` marks everything unknown, so `pipeline.known`
-stays silent — that is expected, not a fault.
+A reading whose model is not recognised logs as `unidentified` instead. Drop
+`logging.level.pipeline` to INFO once the storage stage lands. `pipeline.known`
+stays silent until devices can be promoted — expected, not a fault.
 
 If you see nothing at all, the reading is not reaching the adapter. Check the
 broker and topic first, then confirm message counts are rising:
@@ -181,8 +181,40 @@ transport, ends by publishing a `SensorEnvelope` to `PipelineChannels.INGEST`,
 so later stages never see transport details.
 
 Each stage sits behind a port interface — `ClassificationPort`, for example —
-with a default no-op implementation registered via `@ConditionalOnMissingBean`.
-Real implementations can be dropped in without touching the flow wiring.
+with a default implementation registered via `@ConditionalOnMissingBean`. Real
+implementations can be dropped in without touching the flow wiring.
+
+### Classification rules
+
+Classification identifies the device *model*, which resolves the rule set that
+parses its payload. It does not decide whether a device is *known* — that is
+promotion, a manual step, and nothing is promoted yet.
+
+Rules are type-safe Kotlin, curated by hand in `classify/CuratedRules.kt`:
+
+```kotlin
+val CURATED_CLASSIFICATION_RULES: List<ClassificationRule> = classificationRules {
+    // rtl_433 reports the model in the payload, so matching it identifies the device.
+    rtl433("Acurite-Tower", parseRuleSetId = "acurite-tower-v1", "temperature_C", "humidity")
+}
+```
+
+The trailing field names are required to be present, so a truncated decode is
+not claimed by the rule. For a source that does not self-report a model, use the
+general form:
+
+```kotlin
+rule("WeatherStation", parseRuleSetId = "weather-station-v1") {
+    source("weather-station-rest")
+    requireFields("stationId", "observedAt")
+    where { it.payload.get("stationId")?.asString()?.startsWith("KBOS") == true }
+}
+```
+
+Rules evaluate in declaration order and the first match wins, so put narrow
+rules before broad ones. Device identity comes from `model`/`channel`/`id`
+rather than the receiving antenna, so one transmitter heard by two receivers
+yields one key.
 
 ## Development
 

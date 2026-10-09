@@ -16,24 +16,23 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.integrationFlow
 
 /**
- * Classifies every envelope on [PipelineChannels.INGEST] and branches on the result
- * into the known- and unknown-device channels.
+ * Identifies the device model of every envelope on [PipelineChannels.INGEST].
  */
 @Configuration
 class ClassificationFlowConfig {
 
     @Bean
     @ConditionalOnMissingBean(ClassificationPort::class)
-    fun noRulesClassifier(): ClassificationPort = NoRulesClassifier()
+    fun ruleBasedClassifier(): ClassificationPort = RuleBasedClassifier(CURATED_CLASSIFICATION_RULES)
 
     @Bean
     fun classificationFlow(classifier: ClassificationPort) = integrationFlow(PipelineChannels.INGEST) {
         transform<SensorEnvelope> { classifier.classify(it) }
-        route<Classification> {
-            when (it) {
-                is Classification.Known -> PipelineChannels.KNOWN_DEVICE
-                is Classification.Unknown -> PipelineChannels.UNKNOWN_DEVICE
-            }
-        }
+        // TODO stage 3: branch on whether this device has been promoted to known,
+        // sending promoted devices to PipelineChannels.KNOWN_DEVICE to be parsed with
+        // their model's rule set. Promotion is a manual step that does not exist yet,
+        // so no device is known and every reading - model recognised or not - goes to
+        // the recommendation engine, which works on raw payloads.
+        channel(PipelineChannels.UNKNOWN_DEVICE)
     }
 }

@@ -1,7 +1,7 @@
 # IoT Pipeline: Design Notes
 
 Status: scaffolded. Ingestion (stage 1) works end to end over MQTT; classification
-(stage 2) exists as a port with a no-op default; stages 3-8 are stubs in
+(stage 2) identifies device models from a curated Kotlin rule set; stages 3-8 are stubs in
 `pipeline/StageStubFlows.kt`. Local InfluxDB 3 + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
@@ -35,15 +35,30 @@ Observability is wanted at each stage.
 
 ## Open Questions
 
-- Concrete format/structure of classification rules
 - Frequency and proximity thresholds in the recommendation engine
 - Design of circuit breaker and retry mechanics for publishing
 - Details of the transformation stage and its per-consumer mappings
 - Publication and delivery: one stage or two
 - Retention window length and any downsampling policy in InfluxDB
 
+## Classification Rules
+
+Settled: rules are type-safe Kotlin, declared in a `classificationRules { }` block and
+curated by hand in `classify/CuratedRules.kt`. Each rule recognises one device model
+and names the rule set that parses payloads from it. Rules are evaluated in
+declaration order, first match wins, and may be scoped to a source.
+
+Classification identifies the model and nothing more. Whether a device is *known* is
+a separate question answered by promotion, which stays a manual step: a recognised
+model does not promote the device. Until stage 3 exists, every reading goes to the
+recommendation engine, carrying its model when one was recognised.
+
+Device identity comes from `model`/`channel`/`id` rather than the receiving antenna,
+so one transmitter heard by two receivers yields one key and is counted once.
+
 ## Next Steps
 
-- Implement real classification rules behind `ClassificationPort`, replacing `NoRulesClassifier`
-- Build the known/unknown branch (stage 3) on top of classification output
+- Build the promotion gate (stage 3): branch on whether a device has been promoted,
+  sending promoted readings to the known-device channel
+- Write the parse rule sets that classification's `parseRuleSetId` refers to
 - Wire storage (stage 5) to InfluxDB 3, including the retention policy

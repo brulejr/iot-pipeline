@@ -21,24 +21,34 @@ import org.springframework.integration.handler.LoggingHandler
 @Configuration
 class StageStubFlows {
 
-    // TODO storage stage: write known-device readings to InfluxDB.
+    // TODO storage stage: parse promoted readings with their model's rule set and
+    // write them to InfluxDB. Nothing reaches this channel until promotion exists.
     @Bean
     fun knownDeviceStubFlow() = integrationFlow(PipelineChannels.KNOWN_DEVICE) {
-        log<Classification.Known>(LoggingHandler.Level.INFO, "pipeline.known") { message ->
-            val known = message.payload
-            "known ${known.deviceType} ${known.deviceKey.id} via rule set ${known.ruleSetId}: " +
-                "${known.envelope.payload}"
+        log<Classification.Identified>(LoggingHandler.Level.INFO, "pipeline.known") { message ->
+            val identified = message.payload
+            // deviceKey.id already leads with the model, so it is not repeated here.
+            "known ${identified.deviceKey.id} parsed by ${identified.parseRuleSetId}: " +
+                "${identified.envelope.payload}"
         }
         nullChannel()
     }
 
-    // TODO recommendation engine: track unknown devices by frequency and proximity.
+    // TODO recommendation engine: track devices by frequency and proximity and
+    // recommend the worthwhile ones for promotion.
     @Bean
     fun unknownDeviceStubFlow() = integrationFlow(PipelineChannels.UNKNOWN_DEVICE) {
-        log<Classification.Unknown>(LoggingHandler.Level.DEBUG, "pipeline.unknown") { message ->
-            val unknown = message.payload
-            "unknown ${unknown.deviceKey?.id ?: "unidentified device"} " +
-                "from ${unknown.envelope.origin} (${unknown.reason}): ${unknown.envelope.payload}"
+        log<Classification>(LoggingHandler.Level.DEBUG, "pipeline.unknown") { message ->
+            when (val classification = message.payload) {
+                // Model recognised, but the device has not been promoted to known.
+                is Classification.Identified ->
+                    "unpromoted ${classification.deviceKey.id} [${classification.parseRuleSetId}] " +
+                        "from ${classification.envelope.origin}: ${classification.envelope.payload}"
+                is Classification.Unidentified ->
+                    "unidentified ${classification.deviceKey?.id ?: "device"} " +
+                        "from ${classification.envelope.origin} (${classification.reason}): " +
+                        "${classification.envelope.payload}"
+            }
         }
         nullChannel()
     }
