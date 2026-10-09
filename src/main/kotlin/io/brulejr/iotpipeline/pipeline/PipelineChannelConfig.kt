@@ -25,6 +25,15 @@ class PipelineChannelConfig {
     @Bean(PipelineChannels.DEDUPED)
     fun dedupedChannel(): MessageChannel = DirectChannel()
 
+    @Bean(PipelineChannels.CLASSIFIED)
+    fun classifiedChannel(): MessageChannel = DirectChannel()
+
+    @Bean(PipelineChannels.PROMOTED)
+    fun promotedChannel(): MessageChannel = DirectChannel()
+
+    @Bean(PipelineChannels.PROMOTION_GAPS)
+    fun promotionGapChannel(): MessageChannel = DirectChannel()
+
     @Bean(PipelineChannels.DUPLICATES)
     fun duplicateChannel(): MessageChannel = DirectChannel()
 

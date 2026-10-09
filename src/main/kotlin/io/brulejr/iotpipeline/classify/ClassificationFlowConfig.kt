@@ -46,10 +46,7 @@ class ClassificationFlowConfig {
                         classification.reason
             }
         }
-        // TODO stage 3: branch on whether this device has been promoted to known,
-        // sending promoted readings to PipelineChannels.KNOWN_DEVICE to be parsed with
-        // their model's sensor mappings. Promotion is a manual step that does not exist
-        // yet, so every reading goes to the recommendation engine.
-        channel(PipelineChannels.UNKNOWN_DEVICE)
+        // The promotion gate decides where this goes; see PromotionFlowConfig.
+        channel(PipelineChannels.CLASSIFIED)
     }
 }

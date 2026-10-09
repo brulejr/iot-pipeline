@@ -30,6 +30,7 @@ import kotlin.test.assertIs
         // Keeps the context free of a database. The URI is still bound by Mongo's
         // auto-configuration, but with an in-memory registry nothing ever connects.
         "pipeline.model-registry.type=memory",
+        "pipeline.promotion-registry.type=memory",
         "spring.mongodb.uri=mongodb://localhost:27017/unused",
     ],
 )

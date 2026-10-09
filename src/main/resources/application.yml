@@ -56,6 +56,11 @@ pipeline:
   model-registry:
     type: ${MODEL_REGISTRY:mongo}
 
+  # Devices approved to pass the gate. `mongo` keeps approvals across restarts;
+  # `memory` holds them for the lifetime of the process, which is what the tests use.
+  promotion-registry:
+    type: ${PROMOTION_REGISTRY:mongo}
+
   # Curated sensor mappings are restored from this file at startup. It never overwrites
   # curation already in the store, so the API stays authoritative.
   model-seed:

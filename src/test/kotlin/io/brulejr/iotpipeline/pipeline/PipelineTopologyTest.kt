@@ -35,6 +35,7 @@ import kotlin.test.assertEquals
         // Keeps the context free of a database. The URI is still bound by Mongo's
         // auto-configuration, but with an in-memory registry nothing ever connects.
         "pipeline.model-registry.type=memory",
+        "pipeline.promotion-registry.type=memory",
         "spring.mongodb.uri=mongodb://localhost:27017/unused",
     ],
 )
@@ -60,6 +61,9 @@ class PipelineTopologyTest {
         PipelineChannels.FINGERPRINTED,
         PipelineChannels.DEDUPED,
         PipelineChannels.DUPLICATES,
+        PipelineChannels.CLASSIFIED,
+        PipelineChannels.PROMOTED,
+        PipelineChannels.PROMOTION_GAPS,
         PipelineChannels.KNOWN_DEVICE,
         PipelineChannels.UNKNOWN_DEVICE,
         PipelineChannels.INGEST_ERRORS,
@@ -74,10 +78,12 @@ class PipelineTopologyTest {
             PipelineChannels.DEDUPED to Wiring(setOf("classificationFlow"), setOf("dedupeFlow")),
             // Dedupe's discard path.
             PipelineChannels.DUPLICATES to Wiring(setOf("duplicateFlow"), setOf("dedupeFlow")),
-            PipelineChannels.UNKNOWN_DEVICE to Wiring(setOf("unknownDeviceStubFlow"), setOf("classificationFlow")),
-            // Nothing produces here until the stage 3 promotion gate exists. When it
-            // does, this becomes setOf("classificationFlow") and the test should say so.
-            PipelineChannels.KNOWN_DEVICE to Wiring(subscribers = setOf("knownDeviceStubFlow")),
+            // The gate reads here and fans out to the three outcomes below.
+            PipelineChannels.CLASSIFIED to Wiring(setOf("promotionGateFlow"), setOf("classificationFlow")),
+            PipelineChannels.PROMOTED to Wiring(setOf("promotedReadingFlow"), setOf("promotionGateFlow")),
+            PipelineChannels.PROMOTION_GAPS to Wiring(setOf("promotionGapFlow"), setOf("promotionGateFlow")),
+            PipelineChannels.UNKNOWN_DEVICE to Wiring(setOf("unknownDeviceStubFlow"), setOf("promotionGateFlow")),
+            PipelineChannels.KNOWN_DEVICE to Wiring(setOf("knownDeviceStubFlow"), setOf("promotedReadingFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),
         )

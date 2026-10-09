@@ -19,7 +19,7 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | 1. Ingestion (MQTT) | Working |
 | 1.5 Fingerprint & dedupe | Working — three hashes per reading; repeated deliveries of one transmission are dropped |
 | 2. Classification | Working — models identified by structural fingerprint, auto-registered in MongoDB, and recognised once sensor mappings are curated |
-| 3. Known/unknown branch | Stub |
+| 3. Known/unknown branch | Working — a reading continues only if its device has been promoted |
 | 4. Recommendation engine | Stub |
 | 5. Storage (InfluxDB) | Stub — the container runs, but nothing writes to it yet |
 | 6. Transformation | Stub |
@@ -89,7 +89,8 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.fingerprint` | DEBUG | The event, device and model hashes derived for the reading |
 | `pipeline.dedupe` | DEBUG | Readings discarded as duplicates |
 | `pipeline.classify` | DEBUG | The model each reading was matched to, and whether it can be parsed |
-| `pipeline.unknown` | DEBUG | Readings awaiting promotion — currently all of them |
+| `pipeline.promote` | DEBUG | Readings admitted by the gate; WARN for a promoted device whose model is uncurated |
+| `pipeline.unknown` | DEBUG | Readings whose device is not promoted, bound for the recommendation engine |
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
@@ -113,7 +114,7 @@ pipeline.dedupe      : duplicate of device=baf1bfc9bc94 from rtl_433/<host>/even
 still need sensor mappings.
 
 Drop `logging.level.pipeline` to INFO once the storage stage lands.
-`pipeline.known` stays silent until devices can be promoted — expected, not a
+`pipeline.known` stays silent until a device is promoted — expected, not a
 fault.
 
 If you see nothing at all, the reading is not reaching the adapter. Check the
@@ -288,6 +289,41 @@ treats ON as *low*; `closed: 1` means a contact is *shut*, while `opening`
 treats ON as *open*. Only the person curating the model knows which way round a
 field runs, so it is recorded here rather than guessed at publish time. It
 applies to `BINARY` mappings only.
+
+### Promoting a device
+
+Curating a model says how to read that *kind* of device. It does not adopt any
+particular one: the antenna hears every transmitter in range, so a reading only
+continues past the gate once someone approves the device itself.
+
+Devices are addressed by the key printed on every `pipeline.classify` line —
+the source and the id:
+
+```bash
+curl -X PUT localhost:5001/api/promoted-devices/rtl433/Acurite-Tower/A/3064 \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Back garden sensor","type":"thermometer","area":"garden"}'
+```
+
+`name`, `type` and `area` are what the device is to you, as opposed to the
+model's `category`, which is what kind of device it is. All three are required.
+
+```bash
+curl -s localhost:5001/api/promoted-devices | jq        # what is approved
+curl -X DELETE localhost:5001/api/promoted-devices/rtl433/Acurite-Tower/A/3064
+```
+
+The gate sends a reading one of three ways:
+
+| Device | Model | Goes to |
+| --- | --- | --- |
+| Promoted | Curated | `knownDevice` — normal processing |
+| Promoted | Uncurated | `promotionGaps` — logged at WARN, since nobody said how to read it |
+| Not promoted | Either | `unknownDevice` — the recommendation engine |
+
+Promotions live in MongoDB alongside the model registry. Unlike curated
+mappings they are not seeded from a file yet, so a wiped store means approving
+devices again.
 
 ### Seeding and backing up curation
 

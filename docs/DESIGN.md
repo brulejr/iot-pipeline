@@ -1,8 +1,8 @@
 # IoT Pipeline: Design Notes
 
 Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
-and deduplicated, and classification identifies device models by structural
-fingerprint; stages 3-8 are stubs in
+and deduplicated, classification identifies device models by structural fingerprint,
+and the promotion gate admits only approved devices; stages 4-8 are stubs in
 `pipeline/StageStubFlows.kt`. Local InfluxDB 3 + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
@@ -90,9 +90,25 @@ is expected to host the recommendation and promotion collections when those land
 The structural fingerprint is the document id, so the store cannot hold two records for
 one structure. An in-memory implementation remains for tests.
 
+## Promotion
+
+Settled: promotion is per device and manual, keyed by the device key rather than by the
+device fingerprint. The two are the same identity derived from the same fields, but the
+key is what the logs print, so it is what an operator can act on.
+
+Curating a model and promoting a device are separate decisions. The first says how to
+read a kind of device, the second says this particular one matters. A reading only
+passes the gate when both have happened; a promoted device whose model has no sensor
+mappings is logged as a gap rather than dropped, because that combination is someone's
+oversight rather than noise.
+
+The recommendation engine will propose candidates for promotion, but nothing is
+promoted without a person.
+
 ## Next Steps
 
-- Cover the MongoDB registry with tests against a real database
-- Build the promotion gate (stage 3): branch on whether a device has been promoted,
-  sending promoted readings to the known-device channel
+- Cover the MongoDB registries with tests against a real database
+- Seed promotions from a file, as curated mappings already are
+- Build the recommendation engine (stage 4): count sightings by frequency and proximity
+  and propose candidates for promotion
 - Wire storage (stage 5) to InfluxDB 3, including the retention policy
