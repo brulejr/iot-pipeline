@@ -23,10 +23,6 @@ import org.springframework.integration.handler.LoggingHandler
 class ClassificationFlowConfig {
 
     @Bean
-    @ConditionalOnMissingBean(ModelRegistryPort::class)
-    fun modelRegistry(): ModelRegistryPort = InMemoryModelRegistry()
-
-    @Bean
     @ConditionalOnMissingBean(ClassificationPort::class)
     fun fingerprintClassifier(registry: ModelRegistryPort): ClassificationPort =
         FingerprintClassifier(registry)

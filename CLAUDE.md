@@ -27,9 +27,10 @@ implementations can be swapped in without touching the flow wiring.
 ```
 ./gradlew build          # compile + test
 ./gradlew test           # tests only
+set -a; . ./.env; set +a  # the app needs the Mongo credentials; Compose reads .env, it does not
 ./gradlew bootRun        # app on :5001
-docker compose up -d     # InfluxDB :8181, Grafana :3000
-./scripts/bootstrap-influxdb.sh   # first run: mints admin token, writes .env
+docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000
+./scripts/bootstrap.sh   # first run: mints admin token, writes .env
 ```
 
 ## Notes

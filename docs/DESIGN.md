@@ -14,7 +14,7 @@ Ingest sensor data (initially JSON from RTL-SDR via rtl_433 over MQTT), classify
 
 - Language / framework: Kotlin, Spring Boot, Spring Integration (idiomatic Kotlin DSL, coroutines where they help)
 - Ingestion transport: Spring Integration MQTT adapter (wraps Eclipse Paho). Prototype used a raw Hive-style MQTT client.
-- Storage: InfluxDB 3 Core (open source, MIT/Apache 2.0, single node). Chosen for schema-flexible tag/field model that suits heterogeneous sensor data.
+- Storage: InfluxDB 3 Core (open source, MIT/Apache 2.0, single node). Chosen for schema-flexible tag/field model that suits heterogeneous sensor data. MongoDB alongside it for the model registry and, later, recommendations and promoted devices; readings and metadata have little in common and a time-series store is the wrong shape for a curated catalogue.
 - Dashboards: Grafana as an external consumer of InfluxDB. No app-specific Grafana integration. Dashboard-as-code provisioning is a possible later nicety.
 - Deployment: Docker Compose; the database is owned solely by this application.
 - Edge hardware: Orange Pi Zero running rtl_433 with an RTL-SDR dongle. Kept dumb and lightweight: it only forwards decoded data to MQTT, with no routing or classification logic on it.
@@ -83,14 +83,16 @@ Whether a *device* is known remains a separate question answered by promotion, a
 manual. Until stage 3 exists, every reading goes to the recommendation engine carrying
 its model.
 
-The model registry is in memory for now, behind `ModelRegistryPort`. The catalogue
-rebuilds from traffic on restart and curated mappings do not survive one, so nothing
-stays recognised. It needs a document store, which this project does not yet have.
+The registry lives in MongoDB behind `ModelRegistryPort`, chosen over a relational
+store because a model is naturally a document: an arbitrary payload structure plus a
+nested list of sensor mappings. It is separate from InfluxDB, which holds readings, and
+is expected to host the recommendation and promotion collections when those land.
+The structural fingerprint is the document id, so the store cannot hold two records for
+one structure. An in-memory implementation remains for tests.
 
 ## Next Steps
 
-- Persist the model registry, so curated sensor mappings survive a restart
-- Expose a way to curate sensor mappings on a discovered model
+- Cover the MongoDB registry with tests against a real database
 - Build the promotion gate (stage 3): branch on whether a device has been promoted,
   sending promoted readings to the known-device channel
 - Wire storage (stage 5) to InfluxDB 3, including the retention policy

@@ -29,7 +29,15 @@ import kotlin.test.assertEquals
  * The MQTT adapter is disabled here, as it needs a broker, so the edge from the adapter
  * into [PipelineChannels.INGEST] is the one part of the chain left uncovered.
  */
-@SpringBootTest(properties = ["pipeline.ingest.mqtt.enabled=false"])
+@SpringBootTest(
+    properties = [
+        "pipeline.ingest.mqtt.enabled=false",
+        // Keeps the context free of a database. The URI is still bound by Mongo's
+        // auto-configuration, but with an in-memory registry nothing ever connects.
+        "pipeline.model-registry.type=memory",
+        "spring.mongodb.uri=mongodb://localhost:27017/unused",
+    ],
+)
 class PipelineTopologyTest {
 
     @Autowired

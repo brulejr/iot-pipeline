@@ -1,11 +1,13 @@
-# Local infrastructure for the IoT pipeline: InfluxDB 3 Core (owned solely by the
-# pipeline) and Grafana as an external read-only consumer.
+# Local infrastructure for the IoT pipeline: InfluxDB 3 Core for sensor readings and
+# MongoDB for the model registry (both owned solely by the pipeline), with Grafana as an
+# external read-only consumer.
 #
-# First run:   ./scripts/bootstrap-influxdb.sh   # creates the admin token and .env
+# First run:   ./scripts/bootstrap.sh   # creates the admin token and .env
 # Then:        docker compose up -d
 #
 # InfluxDB: http://localhost:8181   Grafana: http://localhost:3000 (admin / see .env)
-# Host ports can be changed with INFLUXDB3_PORT and GRAFANA_PORT in .env.
+# MongoDB:  localhost:27017 (credentials in .env)
+# Host ports can be changed with INFLUXDB3_PORT, GRAFANA_PORT and MONGO_PORT in .env.
 name: iot-pipeline
 
 services:
@@ -40,8 +42,8 @@ services:
         condition: service_healthy
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run scripts/bootstrap-influxdb.sh first}
-      INFLUXDB3_TOKEN: ${INFLUXDB3_TOKEN:?run scripts/bootstrap-influxdb.sh first}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run scripts/bootstrap.sh first}
+      INFLUXDB3_TOKEN: ${INFLUXDB3_TOKEN:?run scripts/bootstrap.sh first}
       INFLUXDB3_DATABASE: ${INFLUXDB3_DATABASE:-sensors}
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
@@ -50,6 +52,27 @@ services:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro,z
     restart: unless-stopped
 
+  # Holds the model registry: payload structures discovered from live traffic, plus the
+  # sensor mappings curated against them. Separate from InfluxDB, which stores readings.
+  mongodb:
+    image: mongo:8.0
+    environment:
+      # Setting a root username enables auth; the user is created in the admin database,
+      # which is why the application connects with authSource=admin.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:?run scripts/bootstrap.sh first}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?run scripts/bootstrap.sh first}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
 volumes:
   influxdb3-data:
   grafana-data:
+  mongodb-data:

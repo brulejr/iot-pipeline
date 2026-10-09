@@ -21,6 +21,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-integration")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jackson")
     implementation("org.springframework.integration:spring-integration-mqtt")

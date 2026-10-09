@@ -18,7 +18,7 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | --- | --- |
 | 1. Ingestion (MQTT) | Working |
 | 1.5 Fingerprint & dedupe | Working — three hashes per reading; repeated deliveries of one transmission are dropped |
-| 2. Classification | Working — models identified by structural fingerprint and auto-registered; recognising one needs curated sensor mappings |
+| 2. Classification | Working — models identified by structural fingerprint, auto-registered in MongoDB, and recognised once sensor mappings are curated |
 | 3. Known/unknown branch | Stub |
 | 4. Recommendation engine | Stub |
 | 5. Storage (InfluxDB) | Stub — the container runs, but nothing writes to it yet |
@@ -42,7 +42,7 @@ Gradle itself does not need to be installed — use the bundled wrapper.
 
 ```bash
 # 1. Mint the InfluxDB admin token and write .env (first run only)
-./scripts/bootstrap-influxdb.sh
+./scripts/bootstrap.sh
 
 # 2. Start InfluxDB 3 and Grafana
 docker compose up -d
@@ -55,7 +55,19 @@ docker compose up -d
 | --- | --- | --- |
 | Application | http://localhost:5001 | — |
 | InfluxDB 3 | http://localhost:8181 | `INFLUXDB3_TOKEN` in `.env` |
+| MongoDB | localhost:27017 | `MONGO_USERNAME` / `MONGO_PASSWORD` in `.env` |
 | Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` in `.env` |
+
+The application needs the MongoDB credentials too, and `.env` is read only by
+Compose, so export them before running it:
+
+```bash
+set -a; . ./.env; set +a
+./gradlew bootRun
+```
+
+Without them startup fails naming the missing placeholder, rather than quietly
+connecting to whatever else is listening on 27017.
 
 Grafana is provisioned with the InfluxDB datasource already wired up, and is
 treated as an external read-only consumer — the application has no Grafana
@@ -113,7 +125,7 @@ curl -s localhost:5001/mgmt/metrics/spring.integration.send
 
 ### Secrets
 
-`scripts/bootstrap-influxdb.sh` generates `.env` and
+`scripts/bootstrap.sh` generates `.env` and
 `docker/influxdb3/secrets/admin-token.json`. Both are gitignored and must stay
 that way; the script is safe to re-run and does nothing if the token already
 exists.
@@ -130,8 +142,12 @@ these reach Compose only — the application's own settings are under
 | `INFLUXDB3_TOKEN` | yes | InfluxDB admin token; Grafana authenticates with it |
 | `INFLUXDB3_DATABASE` | yes (`sensors`) | Database the Grafana datasource queries |
 | `GRAFANA_ADMIN_PASSWORD` | yes (random) | Grafana `admin` password |
+| `MONGO_USERNAME` | yes (`pipeline`) | MongoDB user, created on first start |
+| `MONGO_PASSWORD` | yes (random) | MongoDB password |
+| `MONGO_DATABASE` | yes (`iotpipeline`) | Database holding the model registry |
 | `INFLUXDB3_PORT` | no (defaults to `8181`) | Host port for InfluxDB |
 | `GRAFANA_PORT` | no (defaults to `3000`) | Host port for Grafana |
+| `MONGO_PORT` | no (defaults to `27017`) | Host port for MongoDB — set this if 27017 is already taken |
 
 Compose fails fast with a pointer to the bootstrap script if the first three
 are missing.
@@ -222,9 +238,33 @@ how to read values out of its payload. Until then the model is registered but
 not recognised, and `pipeline.classify` says so. That curation is the only
 hand-maintained input to the stage.
 
-The registry is in memory, behind `ModelRegistryPort`. It rebuilds from traffic
-on restart, and curated mappings do not survive one, so nothing stays
-recognised yet.
+The registry is held in MongoDB behind `ModelRegistryPort`, so discovered
+models and their curated mappings survive a restart. Set
+`pipeline.model-registry.type=memory` to run without a database, which is what
+the tests do.
+
+### Curating a model
+
+List what has been discovered, including each model's structure and whether it
+is recognised:
+
+```bash
+curl -s localhost:5001/api/models | jq
+```
+
+Then supply the sensor mappings for one, keyed by its structural fingerprint:
+
+```bash
+curl -X PUT localhost:5001/api/models/<fingerprint>/sensors \
+  -H 'Content-Type: application/json' \
+  -d '{"sensors":[
+        {"field":"temperature_C","sensorType":"temperature","unit":"C"},
+        {"field":"humidity","sensorType":"humidity","unit":"%"}
+      ]}'
+```
+
+The model is recognised from the next reading onwards, and `pipeline.classify`
+says so. An empty `sensors` list undoes it.
 
 ## Development
 

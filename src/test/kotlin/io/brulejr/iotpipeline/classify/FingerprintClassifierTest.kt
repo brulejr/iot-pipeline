@@ -54,13 +54,37 @@ class FingerprintClassifierTest {
 
     @Test
     fun `a curated model is recognised`() {
-        val registry = CuratingRegistry(listOf(SensorMapping("temperature_C", "temperature", "C")))
+        val registry = InMemoryModelRegistry()
+        val classifier = FingerprintClassifier(registry)
+        val reading = reading(tower)
+        // Discovery first, then a human supplies the mappings.
+        val discovered = registry.registerIfAbsent(reading)
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", "temperature", "C")))
 
-        val classification = assertIs<Classification.Recognised>(
-            FingerprintClassifier(registry).classify(reading(tower)),
-        )
+        val classification = assertIs<Classification.Recognised>(classifier.classify(reading))
 
         assertEquals(1, classification.model.sensors.size)
+    }
+
+    @Test
+    fun `curating an unknown fingerprint changes nothing`() {
+        val registry = InMemoryModelRegistry()
+
+        assertNull(registry.curate("not-a-fingerprint", listOf(SensorMapping("x", "y"))))
+        assertEquals(0, registry.all().size)
+    }
+
+    @Test
+    fun `clearing the mappings makes a model unrecognised again`() {
+        val registry = InMemoryModelRegistry()
+        val classifier = FingerprintClassifier(registry)
+        val reading = reading(tower)
+        val discovered = registry.registerIfAbsent(reading)
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("temperature_C", "temperature")))
+
+        registry.curate(discovered.fingerprint, emptyList())
+
+        assertIs<Classification.Unrecognised>(classifier.classify(reading))
     }
 
     @Test
@@ -88,21 +112,24 @@ class FingerprintClassifierTest {
 
     @Test
     fun `a curated model whose payload names no device stays unrecognised`() {
-        val registry = CuratingRegistry(listOf(SensorMapping("temp", "temperature")))
+        val registry = InMemoryModelRegistry()
+        val classifier = FingerprintClassifier(registry)
+        val anonymous = reading("""{"temp":1.0}""")
+        val discovered = registry.registerIfAbsent(anonymous)
+        registry.curate(discovered.fingerprint, listOf(SensorMapping("temp", "temperature")))
 
-        val classification = assertIs<Classification.Unrecognised>(
-            FingerprintClassifier(registry).classify(reading("""{"temp":1.0}""")),
-        )
+        val classification = assertIs<Classification.Unrecognised>(classifier.classify(anonymous))
 
         assertEquals(FingerprintClassifier.NO_DEVICE_IDENTITY, classification.reason)
         assertNull(classification.deviceKey)
     }
 
-    /** Stands in for a registry whose models have been curated by hand. */
-    private class CuratingRegistry(private val sensors: List<SensorMapping>) : ModelRegistryPort {
-        private val delegate = InMemoryModelRegistry()
-        override fun registerIfAbsent(reading: FingerprintedReading) =
-            delegate.registerIfAbsent(reading).copy(sensors = sensors)
-        override fun all() = delegate.all()
+    @Test
+    fun `find returns a registered model and nothing for an unseen fingerprint`() {
+        val registry = InMemoryModelRegistry()
+        val discovered = registry.registerIfAbsent(reading(tower))
+
+        assertEquals(discovered, registry.find(discovered.fingerprint))
+        assertNull(registry.find("unseen"))
     }
 }

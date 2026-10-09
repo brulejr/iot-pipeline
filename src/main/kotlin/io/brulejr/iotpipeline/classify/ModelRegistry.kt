@@ -55,6 +55,15 @@ interface ModelRegistryPort {
 
     /** Every model seen so far, newest discovery last. */
     fun all(): List<ModelRecord>
+
+    /** The model with this structural fingerprint, or null if it has not been seen. */
+    fun find(fingerprint: String): ModelRecord?
+
+    /**
+     * Replaces a model's sensor mappings, which is how a human makes it recognised.
+     * Returns the updated model, or null if no model has that fingerprint.
+     */
+    fun curate(fingerprint: String, sensors: List<SensorMapping>): ModelRecord?
 }
 
 /**
@@ -79,4 +88,9 @@ class InMemoryModelRegistry : ModelRegistryPort {
         }
 
     override fun all(): List<ModelRecord> = byFingerprint.values.sortedBy { it.discoveredAt }
+
+    override fun find(fingerprint: String): ModelRecord? = byFingerprint[fingerprint]
+
+    override fun curate(fingerprint: String, sensors: List<SensorMapping>): ModelRecord? =
+        byFingerprint.computeIfPresent(fingerprint) { _, model -> model.copy(sensors = sensors) }
 }
