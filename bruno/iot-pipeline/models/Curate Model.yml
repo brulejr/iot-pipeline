@@ -1,0 +1,29 @@
+info:
+  name: Curate Model
+  type: http
+  seq: 3
+
+http:
+  method: PUT
+  url: "{{iot_pipeline_url}}/api/models/:fingerprint/curation"
+  params:
+    - name: fingerprint
+      value: 75ca26ed8cf93935a53a939152a1f4e2c51a7f1eba18b81cae7f31bfd8f7b12f
+      type: path
+  body:
+    type: json
+    data: |-
+      {"category":"weather",
+             "sensors":[
+              {"name":"temperature_C","type":"ANALOG","classname":"temperature","friendlyName":"Temperature"},
+              {"name":"humidity","type":"ANALOG","classname":"humidity","friendlyName":"Humidity"},
+              {"name":"battery_ok","type":"BINARY","classname":"battery","friendlyName":"Battery","inverted":true}
+            ]}
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

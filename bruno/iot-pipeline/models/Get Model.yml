@@ -1,0 +1,20 @@
+info:
+  name: Get Model
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{iot_pipeline_url}}/api/models/:fingerprint"
+  params:
+    - name: fingerprint
+      value: 75ca26ed8cf93935a53a939152a1f4e2c51a7f1eba18b81cae7f31bfd8f7b12f
+      type: path
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
