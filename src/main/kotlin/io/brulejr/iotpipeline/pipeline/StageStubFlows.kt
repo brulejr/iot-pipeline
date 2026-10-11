@@ -9,7 +9,6 @@
 package io.brulejr.iotpipeline.pipeline
 
 import io.brulejr.iotpipeline.classify.Classification
-import io.brulejr.iotpipeline.promote.PromotedReading
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.integrationFlow
@@ -22,18 +21,10 @@ import org.springframework.integration.handler.LoggingHandler
 @Configuration
 class StageStubFlows {
 
-    // TODO storage stage: parse these with their model's sensor mappings and write them
-    // to InfluxDB.
+    // TODO storage stage: write these to InfluxDB. The reading is already parsed; see
+    // ParseFlowConfig.
     @Bean
-    fun knownDeviceStubFlow() = integrationFlow(PipelineChannels.KNOWN_DEVICE) {
-        log<PromotedReading>(LoggingHandler.Level.INFO, "pipeline.known") { message ->
-            val reading = message.payload
-            val model = reading.classification.model
-            "${reading.device.name} in ${reading.device.area} " +
-                "(${reading.classification.deviceKey?.id}) as ${model.category}/" +
-                "${model.name ?: "unnamed"}, ${model.sensors.size} mapping(s): " +
-                "${reading.classification.reading.envelope.payload}"
-        }
+    fun parsedStubFlow() = integrationFlow(PipelineChannels.PARSED) {
         nullChannel()
     }
 

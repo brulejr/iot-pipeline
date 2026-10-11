@@ -34,6 +34,9 @@ class PipelineChannelConfig {
     @Bean(PipelineChannels.PROMOTION_GAPS)
     fun promotionGapChannel(): MessageChannel = DirectChannel()
 
+    @Bean(PipelineChannels.PARSED)
+    fun parsedChannel(): MessageChannel = DirectChannel()
+
     @Bean(PipelineChannels.DUPLICATES)
     fun duplicateChannel(): MessageChannel = DirectChannel()
 

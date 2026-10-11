@@ -92,6 +92,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.promote` | DEBUG | Readings admitted by the gate; WARN for a promoted device whose model is uncurated |
 | `pipeline.unknown` | DEBUG | Readings whose device is not promoted, bound for the recommendation engine |
 | `pipeline.known` | INFO | Readings from a promoted device |
+| `pipeline.parse` | INFO | Values read out of a payload through its model's mappings |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
 Each reading produces one line per stage, and each line adds information rather
@@ -379,7 +380,9 @@ can never match a reading.
 
 A curation must give a real `category` — not blank, and not the `uncategorised`
 placeholder. A mapping must name a field the model's structure actually has, at
-any depth, and only a `BINARY` mapping may be inverted. A request breaking either rule is
+any depth, and its type must be one the mapping can read: `ANALOG` needs a
+number, `BINARY` takes a number or a boolean, since rtl_433 encodes states as 0
+and 1. Only a `BINARY` mapping may be inverted. A request breaking either rule is
 refused whole, leaving existing mappings untouched, and reports every problem
 at once rather than one per attempt:
 

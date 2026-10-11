@@ -206,6 +206,40 @@ class FingerprintClassifierTest {
     }
 
     @Test
+    fun `an analog mapping on a text field is rejected`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        // mic is a string; a number cannot be read out of it.
+        val discovered = registry.registerIfAbsent(
+            reading("""{"model":"Acurite-Tower","id":1,"channel":"A","mic":"CHECKSUM"}"""),
+        )
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            "weather",
+            listOf(SensorMapping("mic", SensorType.ANALOG, "temperature")),
+        )
+
+        val rejected = assertIs<CurationResult.Invalid>(result)
+        assertTrue(rejected.problems.single().reason.contains("is a string"), rejected.problems.toString())
+    }
+
+    @Test
+    fun `a binary mapping accepts a number, since rtl_433 encodes states that way`() {
+        val registry = InMemoryModelRegistry(jsonMapper)
+        val discovered = registry.registerIfAbsent(
+            reading("""{"model":"DSC-Security","id":2,"closed":1,"esn":"23685b"}"""),
+        )
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            "security",
+            listOf(SensorMapping("closed", SensorType.BINARY, "opening", inverted = true)),
+        )
+
+        assertIs<CurationResult.Curated>(result)
+    }
+
+    @Test
     fun `a field nested inside the structure can be mapped`() {
         val registry = InMemoryModelRegistry(jsonMapper)
         val nested = registry.registerIfAbsent(
