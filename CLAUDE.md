@@ -5,8 +5,10 @@ readings (rtl_433 over MQTT), classifies them, and stores known-device data in
 InfluxDB 3 for Grafana to read. `docs/DESIGN.md` is the authoritative design
 doc: read it before changing pipeline structure.
 
-Status: early scaffold. Stages 3-8 of the design are stubs
-(`pipeline/StageStubFlows.kt`).
+Status: readings from promoted devices flow end to end — ingest, fingerprint and
+dedupe, classification, the promotion gate, parsing, and InfluxDB storage. The
+recommendation engine (stage 4) is a stub in `pipeline/StageStubFlows.kt`;
+transformation and publication (stages 6-8) are not started.
 
 @.claude/CONVENTIONS.md
 
@@ -18,9 +20,16 @@ names wiring stages together; ingestion adapters are transport-specific
 subpackages (`ingest/mqtt/`) that all end by sending a `SensorEnvelope` to
 `PipelineChannels.INGEST`.
 
-Each stage is fronted by a port interface (`ClassificationPort`) with a default
-no-op implementation registered via `@ConditionalOnMissingBean`, so real
-implementations can be swapped in without touching the flow wiring.
+Each stage is fronted by a port interface (`ClassificationPort`,
+`ModelRegistryPort`, `PromotionPort`, `ReadingStorePort`), so implementations
+can be swapped without touching the flow wiring. Where a port has a
+database-backed and a database-free implementation, mutually exclusive
+`@ConditionalOnProperty` conditions pick exactly one — the tests select the
+database-free ones — rather than relying on `@ConditionalOnMissingBean` ordering
+between application beans, which Spring only guarantees for auto-configuration.
+
+`PipelineTopologyTest` asserts the channel wiring against the graph Spring
+Integration actually builds; update its expected map when a stage is rewired.
 
 ## Commands
 
@@ -41,6 +50,9 @@ docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000
   other local Docker containers.
 - Paho must stay an explicit dependency; it is optional in
   `spring-integration-mqtt`.
+- Startup fails if InfluxDB is unreachable, by design: the app creates its
+  database with a retention period before anything is written. Set
+  `pipeline.store.enabled=false` to run without it.
 - Every `.kt` file under `src/` opens with the MIT license header: a `/* */`
   block comment (not KDoc, which would attach to the first declaration) above
   the `package` line, carrying the copyright line and
