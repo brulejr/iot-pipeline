@@ -192,6 +192,15 @@ pipeline:
 A fresh clone has no `application-local.yml` at all, so the defaults in
 `application.yml` apply and nothing breaks.
 
+To run from the IDE without exporting `.env` first, import it from
+`application-local.yml`; the secrets then stay in one file:
+
+```yaml
+spring.config.import: optional:file:.env[.properties]
+```
+
+The `[.properties]` hint is needed because `.env` has no extension.
+
 `local` is for development only. Deployments select a different profile with
 `PROFILE=<name>` — `prod`, backed by an optional `application-prod.yml` — and
 set anything environment-specific through container environment variables,

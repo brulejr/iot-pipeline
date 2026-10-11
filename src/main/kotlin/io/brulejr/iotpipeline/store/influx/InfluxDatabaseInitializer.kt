@@ -37,7 +37,19 @@ import org.springframework.web.client.RestClient
  */
 class InfluxDatabaseInitializer(private val datafill: StoreDatafill) : InitializingBean {
 
-    override fun afterPropertiesSet() = createIfAbsent()
+    override fun afterPropertiesSet() {
+        // Checked here, before any request: a blank token goes out as a bare
+        // "Bearer", which InfluxDB answers with a 400 about a malformed header that
+        // says nothing about where the token was supposed to come from.
+        check(datafill.token.isNotBlank()) {
+            "pipeline.store.token is blank, so the application cannot authenticate to " +
+                "InfluxDB at ${datafill.url}. It comes from INFLUXDB3_TOKEN: export it from " +
+                ".env (`set -a; . ./.env; set +a`), import .env in application-local.yml " +
+                "(`spring.config.import: optional:file:.env[.properties]`), or set " +
+                "pipeline.store.enabled=false to run without storage."
+        }
+        createIfAbsent()
+    }
 
     private val log = LoggerFactory.getLogger(InfluxDatabaseInitializer::class.java)
 
