@@ -1,0 +1,31 @@
+info:
+  name: Promote Device
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{iot_pipeline_url}}/api/promoted-devices/:source/:deviceId"
+  params:
+    - name: source
+      value: rtl433
+      type: path
+    - name: deviceId
+      value: Acurite-Tower/A/3064
+      type: path
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Back garden sensor",
+        "type": "thermometer",
+        "area": "garden"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

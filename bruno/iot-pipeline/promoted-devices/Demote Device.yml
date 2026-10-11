@@ -1,0 +1,23 @@
+info:
+  name: Demote Device
+  type: http
+  seq: 6
+
+http:
+  method: DELETE
+  url: "{{iot_pipeline_url}}/api/promoted-devices/:source/:deviceId"
+  params:
+    - name: source
+      value: rtl433
+      type: path
+    - name: deviceId
+      value: Acurite-Tower/A/3064
+      type: path
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
