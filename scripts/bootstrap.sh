@@ -49,6 +49,9 @@ ensure_env INFLUXDB3_DATABASE sensors
 echo "Grafana:"
 ensure_env GRAFANA_ADMIN_PASSWORD "$(openssl rand -base64 18)"
 
+echo "InfluxDB 3 Explorer:"
+ensure_env EXPLORER_SESSION_SECRET "$(openssl rand -hex 32)"
+
 echo "MongoDB:"
 ensure_env MONGO_USERNAME pipeline
 ensure_env MONGO_PASSWORD "$(openssl rand -base64 18 | tr -d '/+=')"

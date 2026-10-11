@@ -38,7 +38,7 @@ Integration actually builds; update its expected map when a stage is rewired.
 ./gradlew test           # tests only
 set -a; . ./.env; set +a  # the app needs the Mongo credentials; Compose reads .env, it does not
 ./gradlew bootRun        # app on :5001
-docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000
+docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000, Explorer :8888
 ./scripts/bootstrap.sh   # first run: mints admin token, writes .env
 ```
 

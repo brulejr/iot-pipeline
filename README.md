@@ -57,6 +57,7 @@ docker compose up -d
 | InfluxDB 3 | http://localhost:8181 | `INFLUXDB3_TOKEN` in `.env` |
 | MongoDB | localhost:27017 | `MONGO_USERNAME` / `MONGO_PASSWORD` in `.env` |
 | Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` in `.env` |
+| InfluxDB 3 Explorer | http://localhost:8888 | none — already connected to InfluxDB |
 
 The application needs the MongoDB credentials too, and `.env` is read only by
 Compose, so export them before running it:
@@ -151,6 +152,9 @@ these reach Compose only — the application's own settings are under
 | `INFLUXDB3_PORT` | no (defaults to `8181`) | Host port for InfluxDB |
 | `GRAFANA_PORT` | no (defaults to `3000`) | Host port for Grafana |
 | `MONGO_PORT` | no (defaults to `27017`) | Host port for MongoDB — set this if 27017 is already taken |
+| `EXPLORER_SESSION_SECRET` | yes (random) | Keeps Explorer sessions valid across restarts |
+| `EXPLORER_PORT` | no (defaults to `8888`) | Host port for InfluxDB 3 Explorer |
+| `EXPLORER_MODE` | no (defaults to `query`) | `admin` adds database and token management to Explorer |
 
 Compose fails fast with a pointer to the bootstrap script if the first three
 are missing.
@@ -300,6 +304,34 @@ treats ON as *low*; `closed: 1` means a contact is *shut*, while `opening`
 treats ON as *open*. Only the person curating the model knows which way round a
 field runs, so it is recorded here rather than guessed at publish time. It
 applies to `BINARY` mappings only.
+
+### Querying InfluxDB
+
+**InfluxDB 3 Explorer** at http://localhost:8888 is InfluxData's own UI — a
+schema browser and SQL editor, much like MongoDB Compass. It arrives connected
+to the readings database; nothing to configure.
+
+It runs in read-only `query` mode, since the application owns the database and
+its retention period. Set `EXPLORER_MODE=admin` in `.env` for database and token
+management. It is published on localhost only: Explorer has no login but holds
+the admin token, so on every interface it would hand the whole database to
+anyone on the network. From another machine, use an SSH tunnel:
+
+```bash
+ssh -L 8888:localhost:8888 <this host>
+```
+
+**Grafana** at http://localhost:3000 is provisioned against the same database:
+*Explore* → *InfluxDB 3* → *Code* runs SQL and charts the result, which is where
+dashboards come from.
+
+From the command line:
+
+```bash
+set -a; . ./.env; set +a
+docker compose exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
+  "SELECT time, name, sensor, value, state FROM reading ORDER BY time DESC LIMIT 10"
+```
 
 ### Stored readings
 
