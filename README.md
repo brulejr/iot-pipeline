@@ -321,9 +321,25 @@ The gate sends a reading one of three ways:
 | Promoted | Uncurated | `promotionGaps` — logged at WARN, since nobody said how to read it |
 | Not promoted | Either | `unknownDevice` — the recommendation engine |
 
-Promotions live in MongoDB alongside the model registry. Unlike curated
-mappings they are not seeded from a file yet, so a wiped store means approving
-devices again.
+Approvals live in MongoDB alongside the model registry, and are restored at
+startup from `src/main/resources/promotion-seed.json` the same way curated
+mappings are. The file matches `GET /api/promoted-devices`, so a backup is an
+export:
+
+```bash
+curl -s localhost:5001/api/promoted-devices \
+  | jq 'map({deviceKey, name, type, area})' \
+  > src/main/resources/promotion-seed.json
+```
+
+Seeding only fills gaps: a device the store has no approval for is restored, one
+already approved is left alone. A label corrected through the API therefore
+survives the next restart rather than being reverted by a stale file. Point
+`pipeline.promotion-seed.location` at a `file:` resource to keep the list
+outside the repository, or set `pipeline.promotion-seed.enabled=false` to skip
+it. An entry with a blank label or device key fails startup, rather than leaving
+a device quietly unapproved — which would look identical to one nobody has
+reviewed.
 
 ### Seeding and backing up curation
 

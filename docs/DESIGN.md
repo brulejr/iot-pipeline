@@ -108,7 +108,6 @@ promoted without a person.
 ## Next Steps
 
 - Cover the MongoDB registries with tests against a real database
-- Seed promotions from a file, as curated mappings already are
 - Build the recommendation engine (stage 4): count sightings by frequency and proximity
   and propose candidates for promotion
 - Wire storage (stage 5) to InfluxDB 3, including the retention policy

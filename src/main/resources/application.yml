@@ -61,6 +61,12 @@ pipeline:
   promotion-registry:
     type: ${PROMOTION_REGISTRY:mongo}
 
+  # Device approvals are restored from this file at startup. Like the model seed it
+  # never overwrites what is already in the store.
+  promotion-seed:
+    enabled: true
+    location: classpath:promotion-seed.json
+
   # Curated sensor mappings are restored from this file at startup. It never overwrites
   # curation already in the store, so the API stays authoritative.
   model-seed:
