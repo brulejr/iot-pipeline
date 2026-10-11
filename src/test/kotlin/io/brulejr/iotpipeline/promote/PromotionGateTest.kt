@@ -39,6 +39,8 @@ import kotlin.test.assertTrue
         "pipeline.ingest.mqtt.enabled=false",
         "pipeline.model-registry.type=memory",
         "pipeline.promotion-registry.type=memory",
+        // Readings are parsed and then dropped, so no InfluxDB is needed.
+        "pipeline.store.enabled=false",
         "spring.mongodb.uri=mongodb://localhost:27017/unused",
     ],
 )

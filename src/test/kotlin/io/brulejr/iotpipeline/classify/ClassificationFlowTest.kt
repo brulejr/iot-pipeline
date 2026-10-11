@@ -31,6 +31,8 @@ import kotlin.test.assertIs
         // auto-configuration, but with an in-memory registry nothing ever connects.
         "pipeline.model-registry.type=memory",
         "pipeline.promotion-registry.type=memory",
+        // Readings are parsed and then dropped, so no InfluxDB is needed.
+        "pipeline.store.enabled=false",
         "spring.mongodb.uri=mongodb://localhost:27017/unused",
     ],
 )

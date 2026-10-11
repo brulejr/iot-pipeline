@@ -18,7 +18,7 @@ package io.brulejr.iotpipeline.pipeline
  *                                  duplicates                  promotion gate
  *                                  (discarded)                     │
  *                       ┌──────────────────────────────────────────┤
- *                       ├─> promoted ──────> knownDevice ──> parsed ──> (storage)
+ *                       ├─> promoted ──────> knownDevice ──> parsed ──> InfluxDB
  *                       ├─> promotionGaps    (promoted, model uncurated: logged)
  *                       └─> unknownDevice ──> (recommendation engine)
  * ```

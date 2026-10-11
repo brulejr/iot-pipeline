@@ -21,7 +21,7 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | 2. Classification | Working — models identified by structural fingerprint, auto-registered in MongoDB, and recognised once sensor mappings are curated |
 | 3. Known/unknown branch | Working — a reading continues only if its device has been promoted |
 | 4. Recommendation engine | Stub |
-| 5. Storage (InfluxDB) | Stub — the container runs, but nothing writes to it yet |
+| 5. Storage (InfluxDB) | Working — parsed readings are written with a retention period |
 | 6. Transformation | Stub |
 | 7. Publication | Stub |
 | 8. Alerting | Not started |
@@ -93,6 +93,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.unknown` | DEBUG | Readings whose device is not promoted, bound for the recommendation engine |
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.parse` | INFO | Values read out of a payload through its model's mappings |
+| `pipeline.store` | DEBUG | Readings written to InfluxDB |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
 Each reading produces one line per stage, and each line adds information rather
@@ -290,6 +291,38 @@ treats ON as *low*; `closed: 1` means a contact is *shut*, while `opening`
 treats ON as *open*. Only the person curating the model knows which way round a
 field runs, so it is recorded here rather than guessed at publish time. It
 applies to `BINARY` mappings only.
+
+### Stored readings
+
+A promoted device's readings are parsed through its model's mappings and written
+to InfluxDB, one point per value:
+
+```sql
+SELECT time, name, area, category, model, sensor, value, state
+FROM reading ORDER BY time DESC
+```
+
+| Tag | |
+| --- | --- |
+| `source`, `device` | The device key, as the gate and classifier print it |
+| `name`, `type`, `area` | What the device is to you, from its promotion |
+| `model`, `category` | What kind of device it is, from the model |
+| `sensor` | The mapping's `classname` — `temperature`, `battery`, and so on |
+
+The value is the only field: `value` for an analog reading, `state` for a
+binary one. They are separate fields because InfluxDB fixes a field's type on
+first write, so one field could not hold both. One point per value rather than
+per reading means each sensor is a series in its own right, so a model gaining
+or losing a mapping does not reshape what is already stored.
+
+The application creates the database itself, with
+`pipeline.store.retention` (30d by default). This matters: InfluxDB creates a
+database implicitly on the first write, and an implicitly created one has **no
+retention at all**, so leaving it to the first write would keep readings for
+ever. A retention period is fixed at creation, so changing the setting
+afterwards does not alter an existing database — the log says so when it finds
+one. Set `pipeline.store.enabled=false` to run the pipeline without writing
+anything; readings are still parsed and logged.
 
 ### Promoting a device
 

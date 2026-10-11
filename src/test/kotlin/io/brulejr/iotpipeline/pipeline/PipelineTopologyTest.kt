@@ -36,6 +36,8 @@ import kotlin.test.assertEquals
         // auto-configuration, but with an in-memory registry nothing ever connects.
         "pipeline.model-registry.type=memory",
         "pipeline.promotion-registry.type=memory",
+        // Readings are parsed and then dropped, so no InfluxDB is needed.
+        "pipeline.store.enabled=false",
         "spring.mongodb.uri=mongodb://localhost:27017/unused",
     ],
 )
@@ -85,8 +87,7 @@ class PipelineTopologyTest {
             PipelineChannels.PROMOTION_GAPS to Wiring(setOf("promotionGapFlow"), setOf("promotionGateFlow")),
             PipelineChannels.UNKNOWN_DEVICE to Wiring(setOf("unknownDeviceStubFlow"), setOf("promotionGateFlow")),
             PipelineChannels.KNOWN_DEVICE to Wiring(setOf("parseFlow"), setOf("promotedReadingFlow")),
-            // Nothing consumes parsed readings yet; the storage stage subscribes here.
-            PipelineChannels.PARSED to Wiring(setOf("parsedStubFlow"), setOf("parseFlow")),
+            PipelineChannels.PARSED to Wiring(setOf("storeFlow"), setOf("parseFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),
         )

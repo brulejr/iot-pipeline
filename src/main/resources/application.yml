@@ -56,6 +56,17 @@ pipeline:
   model-registry:
     type: ${MODEL_REGISTRY:mongo}
 
+  # Where parsed readings land. The application owns this database: it creates it with
+  # the retention period below, because a database InfluxDB creates implicitly on first
+  # write has no retention at all and would keep readings for ever. Retention is fixed at
+  # creation, so changing it here does not alter an existing database.
+  store:
+    enabled: ${STORE_ENABLED:true}
+    url: ${INFLUXDB3_URL:http://localhost:8181}
+    token: ${INFLUXDB3_TOKEN:}
+    database: ${INFLUXDB3_DATABASE:sensors}
+    retention: 30d
+
   # Devices approved to pass the gate. `mongo` keeps approvals across restarts;
   # `memory` holds them for the lifetime of the process, which is what the tests use.
   promotion-registry:

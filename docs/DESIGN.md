@@ -2,7 +2,8 @@
 
 Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
 and deduplicated, classification identifies device models by structural fingerprint,
-and the promotion gate admits only approved devices; stages 4-8 are stubs in
+the promotion gate admits only approved devices, and their readings are parsed and
+stored in InfluxDB; stages 6-8 are stubs in
 `pipeline/StageStubFlows.kt`. Local InfluxDB 3 + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
@@ -104,6 +105,22 @@ oversight rather than noise.
 
 The recommendation engine will propose candidates for promotion, but nothing is
 promoted without a person.
+
+## Storage
+
+Settled: one point per value rather than per reading, so each sensor is its own series.
+A model gaining or losing a mapping does not reshape what is already stored, and a query
+for temperature need not know which models report it. Tags carry what is worth filtering
+by — the device key, the operator's name/type/area, the model and its category, and the
+sensor's class. Analog and binary values use separate fields because InfluxDB fixes a
+field's type on first write.
+
+The application creates its own database with the retention period, before anything is
+written. InfluxDB creates a database implicitly on first write and an implicit one has
+no retention, so leaving creation to the write would quietly keep readings for ever.
+Creation runs during bean initialisation rather than from an application runner: Spring
+Integration starts its endpoints after every singleton is initialised but before runners
+execute, and from a runner the first reading won the race.
 
 ## Next Steps
 

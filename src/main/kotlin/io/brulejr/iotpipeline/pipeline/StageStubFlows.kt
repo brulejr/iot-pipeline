@@ -21,13 +21,6 @@ import org.springframework.integration.handler.LoggingHandler
 @Configuration
 class StageStubFlows {
 
-    // TODO storage stage: write these to InfluxDB. The reading is already parsed; see
-    // ParseFlowConfig.
-    @Bean
-    fun parsedStubFlow() = integrationFlow(PipelineChannels.PARSED) {
-        nullChannel()
-    }
-
     // TODO recommendation engine: track devices by frequency and proximity and
     // recommend the worthwhile ones for promotion.
     @Bean

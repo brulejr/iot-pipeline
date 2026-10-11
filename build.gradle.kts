@@ -30,6 +30,8 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     // Expiring cache for the dedupe window; version managed by Spring Boot.
     implementation("com.github.ben-manes.caffeine:caffeine")
+    // InfluxDB 3 client. Not in Spring Boot's BOM, so pinned here.
+    implementation(libs.influxdb3.java)
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
