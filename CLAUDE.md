@@ -5,10 +5,9 @@ readings (rtl_433 over MQTT), classifies them, and stores known-device data in
 InfluxDB 3 for Grafana to read. `docs/DESIGN.md` is the authoritative design
 doc: read it before changing pipeline structure.
 
-Status: readings from promoted devices flow end to end — ingest, fingerprint and
-dedupe, classification, the promotion gate, parsing, and InfluxDB storage. The
-recommendation engine (stage 4) is a stub in `pipeline/StageStubFlows.kt`;
-transformation and publication (stages 6-8) are not started.
+Status: stages 1-5 work — ingest, fingerprint and dedupe, classification, the
+promotion gate, recommendation of unpromoted devices, parsing, and InfluxDB
+storage. Transformation and publication (stages 6-8) are not started.
 
 @.claude/CONVENTIONS.md
 
@@ -21,7 +20,8 @@ subpackages (`ingest/mqtt/`) that all end by sending a `SensorEnvelope` to
 `PipelineChannels.INGEST`.
 
 Each stage is fronted by a port interface (`ClassificationPort`,
-`ModelRegistryPort`, `PromotionPort`, `ReadingStorePort`), so implementations
+`ModelRegistryPort`, `PromotionPort`, `SightingRegistryPort`,
+`ReadingStorePort`), so implementations
 can be swapped without touching the flow wiring. Where a port has a
 database-backed and a database-free implementation, mutually exclusive
 `@ConditionalOnProperty` conditions pick exactly one — the tests select the
@@ -50,6 +50,10 @@ docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000, Explor
   other local Docker containers.
 - Paho must stay an explicit dependency; it is optional in
   `spring-integration-mqtt`.
+- `spring.data.mongodb.auto-index-creation` is off: annotation-driven indexes are
+  built when the Mongo template is created, which connects at startup even with
+  every registry in memory. A registry that needs an index creates it itself.
+  Tests point `spring.mongodb.uri` at `127.0.0.1:1`, never a real server.
 - Startup fails if InfluxDB is unreachable, by design: the app creates its
   database with a retention period before anything is written. Set
   `pipeline.store.enabled=false` to run without it.

@@ -20,13 +20,12 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | 1.5 Fingerprint & dedupe | Working — three hashes per reading; repeated deliveries of one transmission are dropped |
 | 2. Classification | Working — models identified by structural fingerprint, auto-registered in MongoDB, and recognised once sensor mappings are curated |
 | 3. Known/unknown branch | Working — a reading continues only if its device has been promoted |
-| 4. Recommendation engine | Stub |
+| 4. Recommendation engine | Working — ranks unpromoted devices by how persistently and how nearby they are heard |
 | 5. Storage (InfluxDB) | Working — parsed readings are written with a retention period |
 | 6. Transformation | Stub |
 | 7. Publication | Stub |
 | 8. Alerting | Not started |
 
-Stubs live in `pipeline/StageStubFlows.kt` and log whatever reaches them.
 [`docs/DESIGN.md`](docs/DESIGN.md) is the authoritative design document and
 covers the reasoning behind each stage.
 
@@ -91,7 +90,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.dedupe` | DEBUG | Readings discarded as duplicates |
 | `pipeline.classify` | DEBUG | The model each reading was matched to, and whether it can be parsed |
 | `pipeline.promote` | DEBUG | Readings admitted by the gate; WARN for a promoted device whose model is uncurated |
-| `pipeline.unknown` | DEBUG | Readings whose device is not promoted, bound for the recommendation engine |
+| `pipeline.unknown` | DEBUG | Readings whose device is not promoted, counted by the recommendation engine |
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.parse` | INFO | Values read out of a payload through its model's mappings |
 | `pipeline.store` | DEBUG | Readings written to InfluxDB |
@@ -364,6 +363,47 @@ ever. A retention period is fixed at creation, so changing the setting
 afterwards does not alter an existing database — the log says so when it finds
 one. Set `pipeline.store.enabled=false` to run the pipeline without writing
 anything; readings are still parsed and logged.
+
+### Recommendations
+
+The antenna hears every transmitter in range — yours, the neighbours', passing
+cars. Every reading from a device nobody has promoted is counted, by hour, and
+the devices are ranked for review:
+
+```bash
+curl -s localhost:5001/api/recommendations | jq
+```
+
+| Field | |
+| --- | --- |
+| `persistence` | Share of the last 24 hours the device was heard in, 0..1 |
+| `proximity` | Median SNR placed between 5 and 17 dB, 0..1; 0.5 if no signal |
+| `score` | 0.6 × proximity + 0.4 × persistence; the list is ordered by it |
+| `recommended` | Heard in at least 6 of the last 24 hours |
+| `modelCurated` | Whether its model has sensor mappings; promote an uncurated one and it reaches the gate only to be reported as a gap |
+
+**Persistence, not rate.** A door sensor that checks in once an hour is around
+all day; a car parked nearby for half an hour sends hundreds of readings and is
+gone. Counting the hours a device is heard in tells those apart where a count of
+readings would not, at the cost of needing a few hours of history before
+anything is recommended.
+
+**Proximity from SNR, not RSSI.** rtl_433 reports RSSI relative to full scale,
+so strong signals all read close to zero. SNR spreads near and far apart and does
+not depend on the radio's gain.
+
+Nothing is promoted automatically. Promote a candidate with its key:
+
+```bash
+curl -X PUT localhost:5001/api/promoted-devices/rtl433/DSC-Security/2321243 \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Front door","type":"contact","area":"hallway"}'
+```
+
+Sightings are kept for a week, in MongoDB's `sightings` collection, and expire
+on their own. The thresholds are in `application.yml` under
+`pipeline.recommendation`; they were calibrated on few samples and are worth
+revisiting as more devices are seen.
 
 ### Promoting a device
 

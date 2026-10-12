@@ -2,9 +2,9 @@
 
 Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
 and deduplicated, classification identifies device models by structural fingerprint,
-the promotion gate admits only approved devices, and their readings are parsed and
-stored in InfluxDB; stages 6-8 are stubs in
-`pipeline/StageStubFlows.kt`. Local InfluxDB 3 + Grafana run via Compose. An earlier
+the promotion gate admits only approved devices, their readings are parsed and stored
+in InfluxDB, and unpromoted devices are ranked for promotion; transformation and
+publication (stages 6-8) are not started. Local InfluxDB 3 + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
 ## Goal
@@ -40,7 +40,6 @@ Observability is wanted at each stage.
 
 ## Open Questions
 
-- Frequency and proximity thresholds in the recommendation engine
 - Design of circuit breaker and retry mechanics for publishing
 - Details of the transformation stage and its per-consumer mappings
 - Publication and delivery: one stage or two
@@ -122,9 +121,30 @@ Creation runs during bean initialisation rather than from an application runner:
 Integration starts its endpoints after every singleton is initialised but before runners
 execute, and from a runner the first reading won the race.
 
+## Recommendation
+
+Settled, after measuring rather than porting the prototype. Frequency is measured as
+persistence — distinct hours heard in the last 24 — not as readings per hour. The
+prototype's "30 sightings in an hour" would never recommend an event-driven sensor such
+as a DSC door contact, which may report a handful of times an hour while being in range
+all day, yet would recommend a car parked nearby for half an hour.
+
+Proximity is read from SNR. The prototype mapped RSSI from -90 to -10 dBm, but rtl_433
+reports RSSI relative to full scale, so every observed device fell between 0 and -11 and
+all would have clipped to maximum proximity, ranking a neighbour's sensor level with
+your own. Observed SNR ran from about 15-17 dB for nearby devices to 5-6 dB for distant
+ones, which sets the default scale.
+
+Score is 0.6 × proximity + 0.4 × persistence, proximity leading as the better sign a
+device is yours rather than a neighbour's. A device is recommended once heard in six of
+the last 24 hours. Scores are computed on request from hourly sighting buckets rather
+than stored, so promoting a device or curating its model shows at once. Buckets expire
+after a week.
+
+The calibration rests on few samples: a handful of decodes per device other than the
+operator's own tower. Worth revisiting once a few days of sightings have accumulated.
+
 ## Next Steps
 
 - Cover the MongoDB registries with tests against a real database
-- Build the recommendation engine (stage 4): count sightings by frequency and proximity
-  and propose candidates for promotion
 - Wire storage (stage 5) to InfluxDB 3, including the retention policy

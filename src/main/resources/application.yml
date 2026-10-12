@@ -27,7 +27,10 @@ spring:
     uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST:localhost}:${MONGO_PORT:27017}/${MONGO_DATABASE}?authSource=admin
   data:
     mongodb:
-      auto-index-creation: true
+      # Off: annotation-driven index creation runs when the Mongo template is built, so
+      # it connects to MongoDB at startup even with every registry in memory. Registries
+      # that need an index create it themselves; see MongoSightingRegistry.
+      auto-index-creation: false
   integration:
     management:
       # Micrometer observations for every channel and handler (observability per stage).
@@ -66,6 +69,22 @@ pipeline:
     token: ${INFLUXDB3_TOKEN:}
     database: ${INFLUXDB3_DATABASE:sensors}
     retention: 30d
+
+  # Hourly sightings of unpromoted devices, scored into recommendations. `memory` keeps
+  # them for the lifetime of the process, which is what the tests use.
+  sighting-registry:
+    type: ${SIGHTING_REGISTRY:mongo}
+
+  # Ranking of unpromoted devices; see RecommendationDatafill for how each is used.
+  # Calibrated on captured traffic: nearby devices around 15-17 dB SNR, distant ones 5-6.
+  recommendation:
+    enabled: true
+    window-hours: 24
+    min-hours-heard: 6
+    signal-field: snr
+    signal-floor: 5.0
+    signal-ceiling: 17.0
+    proximity-weight: 0.6
 
   # Devices approved to pass the gate. `mongo` keeps approvals across restarts;
   # `memory` holds them for the lifetime of the process, which is what the tests use.
