@@ -44,7 +44,9 @@ class RecommendationScorer(private val datafill: RecommendationDatafill) {
             persistence = persistence,
             proximity = proximity,
             score = score,
-            recommended = hoursHeard >= datafill.minHoursHeard,
+            recommended = hoursHeard >= datafill.minHoursHeard &&
+                // No signal is no evidence of distance, so the floor cannot apply.
+                (medianSignal == null || proximity >= datafill.minProximity),
             firstSeen = buckets.minOf { it.hour },
             lastSeen = latest.lastSeen,
         )

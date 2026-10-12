@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -88,6 +89,52 @@ class RecommendationScorerTest {
         val buckets = heard(5, 15.0) + heard(1, 0.0).map { it.copy(hour = start.minus(1, ChronoUnit.HOURS)) }
 
         assertEquals(15.0, scorer.score(buckets, true).medianSignal)
+    }
+
+    @Test
+    fun `by default a nearby device is recommended after three hours`() {
+        val defaults = RecommendationScorer(RecommendationDatafill())
+
+        assertFalse(defaults.score(heard(2, 16.0), true).recommended)
+        assertTrue(defaults.score(heard(3, 16.0), true).recommended)
+    }
+
+    @Test
+    fun `a weak device is never recommended, however long it is around`() {
+        // A neighbour's sensor: on all day, but barely above the noise.
+        val neighbour = scorer.score(heard(24, 7.0), true)
+
+        assertEquals(1.0, neighbour.persistence)
+        assertFalse(neighbour.recommended)
+    }
+
+    @Test
+    fun `devices seen live split on the proximity floor`() {
+        // Median SNR of DSC sensors in one live run: three nearby, one distant.
+        assertTrue(scorer.score(heard(6, 15.8), true).recommended)
+        assertFalse(scorer.score(heard(6, 7.7), true).recommended)
+    }
+
+    @Test
+    fun `the proximity floor is inclusive`() {
+        // 11 dB sits exactly halfway between the 5 dB floor and the 17 dB ceiling.
+        val atFloor = scorer.score(heard(6, 11.0), true)
+
+        assertEquals(0.5, atFloor.proximity)
+        assertTrue(atFloor.recommended)
+    }
+
+    @Test
+    fun `a device with no signal is judged on hours alone`() {
+        // Skipped even with the floor set above the neutral 0.5 a signalless device gets.
+        val strict = RecommendationScorer(RecommendationDatafill(minHoursHeard = 3, minProximity = 0.8))
+
+        assertTrue(strict.score(heard(3, null), true).recommended)
+    }
+
+    @Test
+    fun `a proximity floor outside 0 to 1 is rejected`() {
+        assertFailsWith<IllegalArgumentException> { RecommendationDatafill(minProximity = 1.5) }
     }
 
     @Test

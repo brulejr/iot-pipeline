@@ -136,8 +136,14 @@ your own. Observed SNR ran from about 15-17 dB for nearby devices to 5-6 dB for 
 ones, which sets the default scale.
 
 Score is 0.6 × proximity + 0.4 × persistence, proximity leading as the better sign a
-device is yours rather than a neighbour's. A device is recommended once heard in six of
-the last 24 hours. Scores are computed on request from hourly sighting buckets rather
+device is yours rather than a neighbour's. A device is recommended once heard in three of
+the last 24 hours and with proximity of at least 0.5, about 11 dB. Three is the smallest
+meaningful threshold: buckets are clock hours, so two would be satisfied by readings a
+minute apart either side of the hour. The proximity floor is what keeps a neighbour's
+always-on sensor from being flagged, which persistence alone would do; it is skipped for
+a device whose readings carry no signal. The window stays at a day so persistence still
+separates an afternoon from all day, and so a slowly reporting sensor is not forgotten
+between check-ins. Scores are computed on request from hourly sighting buckets rather
 than stored, so promoting a device or curating its model shows at once. Buckets expire
 after a week.
 

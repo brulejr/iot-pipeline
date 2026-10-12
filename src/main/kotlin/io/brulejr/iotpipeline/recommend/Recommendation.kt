@@ -24,7 +24,9 @@ import java.time.Instant
  * @property proximity [medianSignal] placed between the configured floor and ceiling,
  *   0..1, or a neutral 0.5 when there is no signal to judge by.
  * @property score proximity and persistence combined, 0..1; the list is ordered by it.
- * @property recommended whether the device has been heard in enough hours to suggest.
+ * @property recommended whether the device has been around long enough, and near enough,
+ *   to suggest: heard in enough hours, and with a strong enough signal. A device with
+ *   no signal reading is judged on hours alone.
  */
 data class Recommendation(
     val deviceKey: DeviceKey,

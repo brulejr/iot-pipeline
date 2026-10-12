@@ -379,14 +379,24 @@ curl -s localhost:5001/api/recommendations | jq
 | `persistence` | Share of the last 24 hours the device was heard in, 0..1 |
 | `proximity` | Median SNR placed between 5 and 17 dB, 0..1; 0.5 if no signal |
 | `score` | 0.6 × proximity + 0.4 × persistence; the list is ordered by it |
-| `recommended` | Heard in at least 6 of the last 24 hours |
+| `recommended` | Heard in at least 3 of the last 24 hours, with proximity of at least 0.5 (about 11 dB) |
 | `modelCurated` | Whether its model has sensor mappings; promote an uncurated one and it reaches the gate only to be reported as a gap |
 
 **Persistence, not rate.** A door sensor that checks in once an hour is around
 all day; a car parked nearby for half an hour sends hundreds of readings and is
 gone. Counting the hours a device is heard in tells those apart where a count of
-readings would not, at the cost of needing a few hours of history before
-anything is recommended.
+readings would not. Hours are clock hours, so three of them means a device has
+been around for more than an hour; two would be satisfied by readings a minute
+apart either side of the hour.
+
+**Near as well as persistent.** A neighbour's sensor is around all day too, so
+time alone would flag it. A device is only recommended once its signal is
+strong enough as well. A device whose readings carry no signal is judged on
+hours alone.
+
+You do not have to wait for the flag: every device heard in the window is
+listed straight away, ranked, and can be promoted at any time. `recommended`
+only marks the ones worth looking at first.
 
 **Proximity from SNR, not RSSI.** rtl_433 reports RSSI relative to full scale,
 so strong signals all read close to zero. SNR spreads near and far apart and does
