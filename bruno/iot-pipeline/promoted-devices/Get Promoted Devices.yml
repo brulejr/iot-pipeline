@@ -1,7 +1,7 @@
 info:
   name: Get Promoted Devices
   type: http
-  seq: 4
+  seq: 2
 
 http:
   method: GET
