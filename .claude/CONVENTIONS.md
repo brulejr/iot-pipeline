@@ -32,7 +32,7 @@ Personal conventions, not specific to this project. Candidates for promotion to
 - **DO** include validation on appropriate properties as part of the `*Datafill` class
 - **DO NOT** use `@Value` to inject configuration values directly into classes
 - `*Datafill` classes are the only permitted consumers of `application.yml` values
-- **EXCEPT** for `@ConditionOnProperty` used to enable/disable feature
+- **EXCEPT** for `@ConditionalOnProperty.` used to enable/disable feature
 
 **Each feature MUST have its own `*Service` class.**
 
@@ -52,10 +52,10 @@ Personal conventions, not specific to this project. Candidates for promotion to
 
 - **DO** create a `*HealthIndicator` class per feature to expose a Spring Boot Actuator health indicator
 - **DO** place all health indicator handling within the `*HealthIndicator` class
-- **DO NOT** annotate the `*Service` class with `@Component`; instead, register the class as a bean explicitly
+- **DO NOT** annotate the `*HealthIndicator` class with `@Component`; instead, register the class as a bean explicitly
 - **DO NOT** mix health indicator handling with business logic or data access
 
-**Each feature MUST contrinute to the Spring Boot Actuator info endpoint**
+**Each feature MUST contribute to the Spring Boot Actuator info endpoint**
 
 - **DO** create a `*InfoContributor` class per feature to contribute to the Spring Boot Actuator info endpoint
 - **DO** place all info contribution handling within the `*InfoContributor` class
