@@ -19,6 +19,8 @@ package io.brulejr.iotpipeline.pipeline
  *                                  (discarded)                     │
  *                       ┌──────────────────────────────────────────┤
  *                       ├─> promoted ──────> knownDevice ──> parsed ──> InfluxDB ──> stored ──> (transform)
+ *                       │                         │
+ *                       │                 incompleteReadings (when dropped: logged)
  *                       ├─> promotionGaps    (promoted, model uncurated: logged)
  *                       └─> unknownDevice ──> (recommendation engine)
  * ```
@@ -34,6 +36,7 @@ object PipelineChannels {
     const val PROMOTED = "promotedChannel"
     const val PROMOTION_GAPS = "promotionGapChannel"
     const val PARSED = "parsedChannel"
+    const val INCOMPLETE_READINGS = "incompleteReadingChannel"
     const val STORED = "storedChannel"
     const val DUPLICATES = "duplicateChannel"
     const val KNOWN_DEVICE = "knownDeviceChannel"

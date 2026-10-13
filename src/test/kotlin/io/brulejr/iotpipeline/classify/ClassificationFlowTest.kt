@@ -29,9 +29,9 @@ import kotlin.test.assertIs
         "pipeline.ingest.mqtt.enabled=false",
         // Keeps the context free of a database. The URI is still bound by Mongo's
         // auto-configuration, but with an in-memory registry nothing ever connects.
-        "pipeline.model-registry.type=memory",
-        "pipeline.promotion-registry.type=memory",
-        "pipeline.sighting-registry.type=memory",
+        "pipeline.classification.registry=memory",
+        "pipeline.promotion.registry=memory",
+        "pipeline.recommendation.registry=memory",
         // Readings are parsed and then dropped, so no InfluxDB is needed.
         "pipeline.store.enabled=false",
         // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
@@ -76,7 +76,7 @@ class ClassificationFlowTest {
         assertEquals("Acurite-Tower", classification.model.name)
         assertEquals(DeviceKey("rtl433", "Acurite-Tower/A/1234"), classification.deviceKey)
         // Nothing is curated, so no model can be parsed yet.
-        assertEquals(FingerprintClassifier.NOT_CURATED, classification.reason)
+        assertEquals(ClassificationService.NOT_CURATED, classification.reason)
     }
 
     @Test

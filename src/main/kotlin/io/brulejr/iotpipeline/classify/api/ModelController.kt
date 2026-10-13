@@ -10,7 +10,7 @@ package io.brulejr.iotpipeline.classify.api
 
 import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
-import io.brulejr.iotpipeline.classify.ModelRegistryPort
+import io.brulejr.iotpipeline.classify.ClassificationService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -28,15 +28,15 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/api/models")
-class ModelController(private val registry: ModelRegistryPort) {
+class ModelController(private val service: ClassificationService) {
 
     /** Every model seen, oldest discovery first. */
     @GetMapping
-    fun list(): List<ModelRecord> = registry.all()
+    fun list(): List<ModelRecord> = service.models()
 
     @GetMapping("/{fingerprint}")
     fun get(@PathVariable fingerprint: String): ResponseEntity<ModelRecord> =
-        registry.find(fingerprint)
+        service.model(fingerprint)
             ?.let { ResponseEntity.ok(it) }
             ?: ResponseEntity.notFound().build()
 
@@ -52,7 +52,7 @@ class ModelController(private val registry: ModelRegistryPort) {
         @PathVariable fingerprint: String,
         @RequestBody request: CurationRequest,
     ): ResponseEntity<Any> = when (
-        val result = registry.curate(fingerprint, request.category, request.sensors)
+        val result = service.curate(fingerprint, request.category, request.sensors)
     ) {
         is CurationResult.Curated -> ResponseEntity.ok(result.model)
         is CurationResult.ModelNotFound -> ResponseEntity.notFound().build()

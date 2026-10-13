@@ -34,9 +34,9 @@ import kotlin.test.assertEquals
         "pipeline.ingest.mqtt.enabled=false",
         // Keeps the context free of a database. The URI is still bound by Mongo's
         // auto-configuration, but with an in-memory registry nothing ever connects.
-        "pipeline.model-registry.type=memory",
-        "pipeline.promotion-registry.type=memory",
-        "pipeline.sighting-registry.type=memory",
+        "pipeline.classification.registry=memory",
+        "pipeline.promotion.registry=memory",
+        "pipeline.recommendation.registry=memory",
         // Readings are parsed and then dropped, so no InfluxDB is needed.
         "pipeline.store.enabled=false",
         // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
@@ -70,6 +70,7 @@ class PipelineTopologyTest {
         PipelineChannels.PROMOTION_GAPS,
         PipelineChannels.KNOWN_DEVICE,
         PipelineChannels.PARSED,
+        PipelineChannels.INCOMPLETE_READINGS,
         PipelineChannels.STORED,
         PipelineChannels.UNKNOWN_DEVICE,
         PipelineChannels.INGEST_ERRORS,
@@ -91,6 +92,8 @@ class PipelineTopologyTest {
             PipelineChannels.UNKNOWN_DEVICE to Wiring(setOf("recommendationFlow"), setOf("promotionGateFlow")),
             PipelineChannels.KNOWN_DEVICE to Wiring(setOf("parseFlow"), setOf("promotedReadingFlow")),
             PipelineChannels.PARSED to Wiring(setOf("storeFlow"), setOf("parseFlow")),
+            // Parse's discard path, taken only when incomplete readings are dropped.
+            PipelineChannels.INCOMPLETE_READINGS to Wiring(setOf("incompleteReadingFlow"), setOf("parseFlow")),
             PipelineChannels.STORED to Wiring(setOf("transformFlow"), setOf("storeFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),

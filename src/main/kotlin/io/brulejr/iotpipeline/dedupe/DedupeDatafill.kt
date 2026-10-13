@@ -25,4 +25,9 @@ data class DedupeDatafill(
     val enabled: Boolean = true,
     val window: Duration = Duration.ofSeconds(5),
     val maximumDevices: Long = 10_000,
-)
+) {
+    init {
+        require(!window.isNegative) { "pipeline.dedupe.window must not be negative" }
+        require(maximumDevices > 0) { "pipeline.dedupe.maximum-devices must be positive" }
+    }
+}

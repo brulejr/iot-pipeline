@@ -34,6 +34,7 @@ class InfluxReadingStore(
     datafill: StoreDatafill,
 ) : ReadingStorePort {
 
+    private val database = datafill.database
     private val measurement = datafill.measurement
     private val writeOptions = WriteOptions(datafill.database, WritePrecision.NS, null)
 
@@ -41,6 +42,9 @@ class InfluxReadingStore(
         if (reading.values.isEmpty()) return
         client.writePoints(reading.values.map { pointFor(reading, it) }, writeOptions)
     }
+
+    /** Asks the server for its version, which needs no database and proves it answers. */
+    override fun describe() = "InfluxDB ${client.serverVersion}, database $database"
 
     private fun pointFor(reading: ParsedReading, value: SensorValue): Point {
         val point = Point.measurement(measurement)

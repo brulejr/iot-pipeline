@@ -8,6 +8,8 @@
  */
 package io.brulejr.iotpipeline.classify.seed
 
+import io.brulejr.iotpipeline.classify.ClassificationDatafill
+import io.brulejr.iotpipeline.classify.ClassificationService
 import io.brulejr.iotpipeline.classify.InMemoryModelRegistry
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.SensorMapping
@@ -54,8 +56,8 @@ class ModelSeederTest {
     private fun seeder(
         registry: InMemoryModelRegistry,
         json: String?,
-        datafill: ModelSeedDatafill = ModelSeedDatafill(),
-    ) = ModelSeeder(registry, datafill, jsonMapper, loaderOf(json))
+        datafill: ClassificationDatafill.Seed = ClassificationDatafill.Seed(),
+    ) = ModelSeeder(ClassificationService(registry, jsonMapper), datafill, jsonMapper, loaderOf(json))
 
     private fun record(sensors: List<SensorMapping>) = ModelRecord(
         fingerprint = fingerprint,
@@ -69,7 +71,7 @@ class ModelSeederTest {
 
     @Test
     fun `a model the store does not have is restored with its mappings`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
 
         val outcome = seeder(registry, seedJson()).seed()
 
@@ -82,7 +84,7 @@ class ModelSeederTest {
 
     @Test
     fun `a model already present but uncurated is given its mappings`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
         registry.insertIfAbsent(record(emptyList()))
 
         val outcome = seeder(registry, seedJson()).seed()
@@ -93,7 +95,7 @@ class ModelSeederTest {
 
     @Test
     fun `curation already in the store is never overwritten`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
         registry.insertIfAbsent(record(listOf(SensorMapping("humidity", SensorType.ANALOG, "humidity"))))
 
         val outcome = seeder(registry, seedJson()).seed()
@@ -105,7 +107,7 @@ class ModelSeederTest {
 
     @Test
     fun `seeding twice changes nothing the second time`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
         val seeder = seeder(registry, seedJson())
 
         assertEquals(SeedOutcome(restored = 1), seeder.seed())
@@ -114,14 +116,14 @@ class ModelSeederTest {
 
     @Test
     fun `a missing seed file is not an error`() {
-        assertEquals(SeedOutcome(), seeder(InMemoryModelRegistry(jsonMapper), null).seed())
+        assertEquals(SeedOutcome(), seeder(InMemoryModelRegistry(), null).seed())
     }
 
     @Test
     fun `seeding can be switched off`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
 
-        val outcome = seeder(registry, seedJson(), ModelSeedDatafill(enabled = false)).seed()
+        val outcome = seeder(registry, seedJson(), ClassificationDatafill.Seed(enabled = false)).seed()
 
         assertEquals(SeedOutcome(), outcome)
         assertEquals(0, registry.all().size)
@@ -129,7 +131,7 @@ class ModelSeederTest {
 
     @Test
     fun `a fingerprint that is not the hash of its structure is refused`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
 
         val failure = assertFailsWith<IllegalArgumentException> {
             seeder(registry, seedJson(fp = "0".repeat(64))).seed()
@@ -141,7 +143,7 @@ class ModelSeederTest {
 
     @Test
     fun `a mapping naming a field the structure does not have is refused`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
 
         val failure = assertFailsWith<IllegalStateException> {
             seeder(
@@ -156,7 +158,7 @@ class ModelSeederTest {
 
     @Test
     fun `an exported model, extra computed fields included, reads back`() {
-        val registry = InMemoryModelRegistry(jsonMapper)
+        val registry = InMemoryModelRegistry()
         // `recognised` is computed and appears in GET /api/models output.
         val exported = """[{"fingerprint":"$fingerprint","source":"rtl433","name":"Acurite-Tower",
             "structure":${jsonMapper.writeValueAsString(structure)},

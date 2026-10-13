@@ -14,20 +14,28 @@ Home Assistant messages are only logged.
 
 ## Layout
 
-Packages mirror pipeline stages, one package per stage
-(`ingest/`, `classify/`, ...). `pipeline/PipelineChannels.kt` holds the channel
-names wiring stages together; ingestion adapters are transport-specific
-subpackages (`ingest/mqtt/`) that all end by sending a `SensorEnvelope` to
-`PipelineChannels.INGEST`.
+One package per feature, each a pipeline stage (`ingest/mqtt/`, `fingerprint/`,
+`dedupe/`, `classify/`, `promote/`, `recommend/`, `parse/`, `store/`,
+`transform/`). Following the conventions, each feature has exactly one
+`*Config` declaring all its beans and flows, a validated `*Datafill`, a
+`*Service` holding its logic (flows and controllers only call it), a
+`*Controller` under `api/`, a `*HealthIndicator` and a `*InfoContributor`.
+Cross-cutting pieces live in `pipeline/`: `PipelineChannels.kt` names the
+channels joining the stages, `PipelineConfig` declares them and the error log,
+and `RegistryType` and `requireResolvedMongoUri` serve every registry.
+Ingestion adapters are transport-specific subpackages (`ingest/mqtt/`) that
+all end by sending a `SensorEnvelope` to `PipelineChannels.INGEST`.
 
-Each stage is fronted by a port interface (`ClassificationPort`,
-`ModelRegistryPort`, `PromotionPort`, `SightingRegistryPort`,
-`ReadingStorePort`, `ReadingTransformerPort`), so implementations
-can be swapped without touching the flow wiring. Where a port has a
-database-backed and a database-free implementation, mutually exclusive
-`@ConditionalOnProperty` conditions pick exactly one — the tests select the
-database-free ones — rather than relying on `@ConditionalOnMissingBean` ordering
-between application beans, which Spring only guarantees for auto-configuration.
+Storage sits behind ports (`ModelRegistryPort`, `PromotionPort`,
+`SightingRegistryPort`, `ReadingStorePort`), and so does
+`ReadingTransformerPort`. The registries are storage only: validation lives in
+the services. Each registry's Datafill picks MongoDB or memory through
+`registry: mongo|memory` (`pipeline.classification.registry`,
+`pipeline.promotion.registry`, `pipeline.recommendation.registry`), and the
+config's `when` builds one, looking MongoDB up lazily so a memory-only context
+never touches it; the tests select `memory`. `@ConditionalOnProperty` is kept
+only to switch a feature on or off (`pipeline.ingest.mqtt.enabled`,
+`pipeline.store.enabled`).
 
 `PipelineTopologyTest` asserts the channel wiring against the graph Spring
 Integration actually builds; update its expected map when a stage is rewired.

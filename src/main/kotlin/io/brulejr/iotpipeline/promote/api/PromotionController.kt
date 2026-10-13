@@ -10,8 +10,8 @@ package io.brulejr.iotpipeline.promote.api
 
 import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.promote.PromotedDevice
-import io.brulejr.iotpipeline.promote.PromotionPort
 import io.brulejr.iotpipeline.promote.PromotionResult
+import io.brulejr.iotpipeline.promote.PromotionService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -34,7 +34,7 @@ import java.time.Instant
  */
 @RestController
 @RequestMapping("/api/promoted-devices")
-class PromotionController(private val promotions: PromotionPort) {
+class PromotionController(private val promotions: PromotionService) {
 
     @GetMapping
     fun list(): List<PromotedDevice> = promotions.all()

@@ -53,11 +53,11 @@ pipeline:
     enabled: true
     # excluded-model-fields / excluded-event-fields default to the radio metadata set
 
-  # Where discovered models and their curated sensor mappings live. `mongo` persists
-  # them; `memory` keeps them for the lifetime of the process, which is what the tests
-  # use so they need no database.
-  model-registry:
-    type: ${MODEL_REGISTRY:mongo}
+
+  # A reading whose model has a mapping the payload yields no value for is incomplete.
+  # It is stored with the values it has unless drop-incomplete is set.
+  parse:
+    drop-incomplete: false
 
   # Where parsed readings land. The application owns this database: it creates it with
   # the retention period below, because a database InfluxDB creates implicitly on first
@@ -70,14 +70,12 @@ pipeline:
     database: ${INFLUXDB3_DATABASE:sensors}
     retention: 30d
 
-  # Hourly sightings of unpromoted devices, scored into recommendations. `memory` keeps
-  # them for the lifetime of the process, which is what the tests use.
-  sighting-registry:
-    type: ${SIGHTING_REGISTRY:mongo}
-
   # Ranking of unpromoted devices; see RecommendationDatafill for how each is used.
   # Calibrated on captured traffic: nearby devices around 15-17 dB SNR, distant ones 5-6.
+  # `registry` holds the hourly sightings scored into recommendations; `memory` keeps
+  # them for the lifetime of the process, which is what the tests use.
   recommendation:
+    registry: ${SIGHTING_REGISTRY:mongo}
     enabled: true
     window-hours: 24
     # Clock-hour buckets make 3 the smallest meaningful value: around for over an hour.
@@ -99,22 +97,24 @@ pipeline:
       # Retained, so Home Assistant shows the last value straight after it restarts.
       retain-state: true
 
-  # Devices approved to pass the gate. `mongo` keeps approvals across restarts;
-  # `memory` holds them for the lifetime of the process, which is what the tests use.
-  promotion-registry:
-    type: ${PROMOTION_REGISTRY:mongo}
+  # Promotion: devices approved to pass the gate. `mongo` keeps approvals across
+  # restarts; `memory` holds them for the lifetime of the process, which is what the
+  # tests use. Approvals are restored from the seed file at startup, which like the
+  # model seed never overwrites what is already in the store.
+  promotion:
+    registry: ${PROMOTION_REGISTRY:mongo}
+    seed:
+      enabled: true
+      location: classpath:promotion-seed.json
 
-  # Device approvals are restored from this file at startup. Like the model seed it
-  # never overwrites what is already in the store.
-  promotion-seed:
-    enabled: true
-    location: classpath:promotion-seed.json
-
-  # Curated sensor mappings are restored from this file at startup. It never overwrites
-  # curation already in the store, so the API stays authoritative.
-  model-seed:
-    enabled: true
-    location: classpath:model-seed.json
+  # Classification: where models and their curation live, and the seed file that
+  # restores curation at startup. `memory` keeps models for the lifetime of the process,
+  # which is what the tests use. A seed never overwrites curation already in the store.
+  classification:
+    registry: ${MODEL_REGISTRY:mongo}
+    seed:
+      enabled: true
+      location: classpath:model-seed.json
 
   dedupe:
     enabled: true

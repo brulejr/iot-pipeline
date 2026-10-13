@@ -12,17 +12,19 @@ import io.brulejr.iotpipeline.ingest.SensorEnvelope
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty
+import org.springframework.context.ApplicationListener
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
 import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory
 import org.springframework.integration.mqtt.core.MqttPahoClientFactory
+import org.springframework.integration.mqtt.event.MqttIntegrationEvent
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter
 import org.springframework.integration.mqtt.support.MqttHeaders
 import org.springframework.messaging.Message
 import tools.jackson.databind.json.JsonMapper
-import java.time.Instant
+import java.time.Clock
 
 /**
  * MQTT ingestion adapter: subscribes to the rtl_433 topic(s), wraps each JSON
@@ -50,17 +52,27 @@ class MqttIngestionConfig(private val datafill: MqttIngestionDatafill) {
         }
 
     @Bean
-    fun mqttIngestionFlow(adapter: MqttPahoMessageDrivenChannelAdapter, jsonMapper: JsonMapper) =
+    fun mqttIngestionService(jsonMapper: JsonMapper) = MqttIngestionService(datafill, jsonMapper, Clock.systemUTC())
+
+    @Bean
+    fun mqttIngestionHealthIndicator(service: MqttIngestionService) = MqttIngestionHealthIndicator(service, datafill)
+
+    @Bean
+    fun mqttIngestionInfoContributor() = MqttIngestionInfoContributor(datafill)
+
+    /** An anonymous class rather than a lambda, so Spring can see which events it takes. */
+    @Bean
+    fun mqttConnectionListener(service: MqttIngestionService) = object : ApplicationListener<MqttIntegrationEvent> {
+        override fun onApplicationEvent(event: MqttIntegrationEvent) = service.onEvent(event)
+    }
+
+    @Bean
+    fun mqttIngestionFlow(adapter: MqttPahoMessageDrivenChannelAdapter, service: MqttIngestionService) =
         integrationFlow(adapter) {
             transform<Message<String>> { message ->
-                SensorEnvelope(
-                    source = datafill.source,
-                    origin = message.headers[MqttHeaders.RECEIVED_TOPIC] as String,
-                    receivedAt = Instant.now(),
-                    payload = jsonMapper.readTree(message.payload),
-                )
+                service.envelope(message.headers[MqttHeaders.RECEIVED_TOPIC] as String, message.payload)
             }
-            // Logs are the only record of a reading until the storage stage lands.
+            // The raw payload, which later stages' log lines refer back to.
             log<SensorEnvelope>(LoggingHandler.Level.DEBUG, "pipeline.ingest") { message ->
                 "received from ${message.payload.origin}: ${message.payload.payload}"
             }

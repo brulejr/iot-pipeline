@@ -9,8 +9,9 @@
 package io.brulejr.iotpipeline.promote.seed
 
 import io.brulejr.iotpipeline.promote.PromotedDevice
-import io.brulejr.iotpipeline.promote.PromotionPort
+import io.brulejr.iotpipeline.promote.PromotionDatafill
 import io.brulejr.iotpipeline.promote.PromotionResult
+import io.brulejr.iotpipeline.promote.PromotionService
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.ResourceLoader
 import tools.jackson.databind.json.JsonMapper
@@ -27,8 +28,8 @@ import java.time.Instant
  * API stays authoritative and a stale file cannot silently revert a corrected label.
  */
 class PromotionSeeder(
-    private val promotions: PromotionPort,
-    private val datafill: PromotionSeedDatafill,
+    private val promotions: PromotionService,
+    private val datafill: PromotionDatafill.Seed,
     private val jsonMapper: JsonMapper,
     private val resourceLoader: ResourceLoader,
 ) {

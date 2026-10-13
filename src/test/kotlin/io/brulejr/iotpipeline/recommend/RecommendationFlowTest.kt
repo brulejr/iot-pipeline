@@ -27,9 +27,9 @@ import kotlin.test.assertEquals
 @SpringBootTest(
     properties = [
         "pipeline.ingest.mqtt.enabled=false",
-        "pipeline.model-registry.type=memory",
-        "pipeline.promotion-registry.type=memory",
-        "pipeline.sighting-registry.type=memory",
+        "pipeline.classification.registry=memory",
+        "pipeline.promotion.registry=memory",
+        "pipeline.recommendation.registry=memory",
         // Readings are parsed and then dropped, so no InfluxDB is needed.
         "pipeline.store.enabled=false",
         // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.

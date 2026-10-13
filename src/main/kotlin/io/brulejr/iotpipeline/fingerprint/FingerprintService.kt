@@ -11,6 +11,7 @@ package io.brulejr.iotpipeline.fingerprint
 import io.brulejr.iotpipeline.ingest.SensorEnvelope
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Derives a reading's [Fingerprint].
@@ -23,6 +24,16 @@ class FingerprintService(
     private val jsonMapper: JsonMapper,
 ) {
 
+    private val fingerprinted = AtomicLong()
+
+    /** Fingerprints a reading arriving through the pipeline, counting it. */
+    fun fingerprinted(envelope: SensorEnvelope): FingerprintedReading =
+        FingerprintedReading(envelope, fingerprint(envelope)).also { fingerprinted.incrementAndGet() }
+
+    /** How many readings have been fingerprinted on their way through the pipeline. */
+    fun fingerprintedCount(): Long = fingerprinted.get()
+
+    /** The fingerprints of [envelope], without counting it as a reading. */
     fun fingerprint(envelope: SensorEnvelope): Fingerprint {
         val payload = envelope.payload
         val modelStructure = modelStructure(payload)
@@ -91,5 +102,4 @@ class FingerprintService(
 
     private fun JsonNode.stringField(name: String): String? =
         get(name)?.takeIf { it.isValueNode }?.asString()
-
 }

@@ -20,4 +20,10 @@ interface ReadingStorePort {
 
     /** Writes every value in [reading]. */
     fun store(reading: ParsedReading)
+
+    /**
+     * Names what readings are written to, asking it if need be, so a store that cannot
+     * be reached throws.
+     */
+    fun describe(): String
 }

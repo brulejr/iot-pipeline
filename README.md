@@ -78,9 +78,27 @@ Actuator exposes `health`, `info`, `metrics`, and `integrationgraph` under
 Spring Integration channel and handler, so each stage is individually
 observable.
 
+Every feature contributes to both `health` and `info`. Health reports whether
+the feature's backing store answers, with counts since startup: the MQTT
+connection is down once the broker is lost, and storage is down when InfluxDB
+cannot be reached. Info shows each feature's settings, minus credentials.
+Each feature also has an endpoint of its own:
+
+| Endpoint | What it gives |
+| --- | --- |
+| `GET /api/ingest/mqtt` | Broker connection, messages received and malformed |
+| `POST /api/fingerprints` | The hashes a payload would get, without processing it |
+| `GET /api/dedupe` | Readings passed and discarded as duplicates |
+| `GET /api/models`, `PUT /api/models/{fingerprint}/curation` | The model registry and curation |
+| `GET /api/promoted-devices`, `PUT`/`DELETE …/{source}/{deviceId}` | Device approvals |
+| `GET /api/recommendations` | Unpromoted devices, best candidate first |
+| `POST /api/models/{fingerprint}/parse` | What a payload would parse to under a model's curation |
+| `GET /api/store` | Readings and values written, and failed writes |
+| `GET /api/outbound-messages` | The latest Home Assistant message for each topic |
+
 ### Seeing readings
 
-Nothing is persisted yet, so logs are the only record that a reading arrived.
+Logs follow a reading through every stage, including the ones that drop it.
 Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 
 | Category | Level | What it shows |
@@ -92,7 +110,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.promote` | DEBUG | Readings admitted by the gate; WARN for a promoted device whose model is uncurated |
 | `pipeline.unknown` | DEBUG | Readings whose device is not promoted, counted by the recommendation engine |
 | `pipeline.known` | INFO | Readings from a promoted device |
-| `pipeline.parse` | INFO | Values read out of a payload through its model's mappings |
+| `pipeline.parse` | INFO | Values read out of a payload through its model's mappings; WARN for an incomplete reading dropped by `pipeline.parse.drop-incomplete` |
 | `pipeline.store` | DEBUG | Readings written to InfluxDB |
 | `pipeline.transform` | DEBUG | Messages shaped for Home Assistant, with their topics |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
@@ -172,6 +190,9 @@ configuration at all. Override via environment variables:
 | `MQTT_TOPIC` | `rtl_433/+/events` | Topic pattern carrying rtl_433 events |
 | `PIPELINE_INGEST_MQTT_USERNAME` | — | Broker username, if required |
 | `PIPELINE_INGEST_MQTT_PASSWORD` | — | Broker password, if required |
+| `MODEL_REGISTRY` | `mongo` | Where models are kept: `mongo` or `memory` |
+| `PROMOTION_REGISTRY` | `mongo` | Where device approvals are kept: `mongo` or `memory` |
+| `SIGHTING_REGISTRY` | `mongo` | Where sightings of unpromoted devices are kept: `mongo` or `memory` |
 
 Set `pipeline.ingest.mqtt.enabled=false` to start the application without the
 MQTT adapter, which is useful when working on later stages without a broker.
@@ -215,10 +236,16 @@ which outrank every config file.
 ```
 src/main/kotlin/io/brulejr/iotpipeline/
 ├── IotPipelineApplication.kt
-├── ingest/           # Stage 1 — transport adapters
-│   └── mqtt/         #   MQTT/Paho adapter
-├── classify/         # Stage 2 — device classification
-└── pipeline/         # Channel definitions and stage stubs
+├── ingest/mqtt/      # Stage 1 — the MQTT/Paho adapter
+├── fingerprint/      #   event, device and model hashes
+├── dedupe/           #   repeated decodes dropped
+├── classify/         # Stage 2 — model identification and curation
+├── promote/          # Stage 3 — the promotion gate
+├── recommend/        # Stage 4 — ranking unpromoted devices
+├── parse/            # Stage 5 — values read through sensor mappings
+├── store/            #   InfluxDB storage
+├── transform/        # Stage 6 — shaping for Home Assistant
+└── pipeline/         # Cross-cutting: channels, error log, registry choice
 ```
 
 Packages mirror pipeline stages. `pipeline/PipelineChannels.kt` holds the
@@ -226,9 +253,11 @@ channel names that wire stages together; every ingestion adapter, whatever its
 transport, ends by publishing a `SensorEnvelope` to `PipelineChannels.INGEST`,
 so later stages never see transport details.
 
-Each stage sits behind a port interface — `ClassificationPort`, for example —
-with a default implementation registered via `@ConditionalOnMissingBean`. Real
-implementations can be dropped in without touching the flow wiring.
+Every feature package has the same shape: one `*Config` declaring its beans
+and flows, a validated `*Datafill` for its `pipeline.*` settings, a `*Service`
+holding its logic, a `*Controller`, a health indicator and an info
+contributor. Storage sits behind ports such as `ModelRegistryPort`, so MongoDB
+and in-memory implementations swap without touching the flow wiring.
 
 ### Fingerprinting and model identification
 
@@ -256,7 +285,7 @@ hand-maintained input to the stage.
 
 The registry is held in MongoDB behind `ModelRegistryPort`, so discovered
 models and their curated mappings survive a restart. Set
-`pipeline.model-registry.type=memory` to run without a database, which is what
+`pipeline.classification.registry=memory` to run without a database, which is what
 the tests do.
 
 ### Curating a model
@@ -491,8 +520,8 @@ curl -s localhost:5001/api/promoted-devices \
 Seeding only fills gaps: a device the store has no approval for is restored, one
 already approved is left alone. A label corrected through the API therefore
 survives the next restart rather than being reverted by a stale file. Point
-`pipeline.promotion-seed.location` at a `file:` resource to keep the list
-outside the repository, or set `pipeline.promotion-seed.enabled=false` to skip
+`pipeline.promotion.seed.location` at a `file:` resource to keep the list
+outside the repository, or set `pipeline.promotion.seed.enabled=false` to skip
 it. An entry with a blank label or device key fails startup, rather than leaving
 a device quietly unapproved — which would look identical to one nobody has
 reviewed.
@@ -521,9 +550,9 @@ Seeding is idempotent and never destructive:
 | Model present, already curated | Left alone |
 
 Curation through the API therefore stays authoritative — a stale seed file
-cannot silently revert it. Point `pipeline.model-seed.location` at a `file:`
+cannot silently revert it. Point `pipeline.classification.seed.location` at a `file:`
 resource to keep the file outside the repository, or set
-`pipeline.model-seed.enabled=false` to skip it.
+`pipeline.classification.seed.enabled=false` to skip it.
 
 A seed entry is refused at startup if it has no `category`, if its fingerprint is
 not the hash of its own structure, or if a mapping names a field that structure

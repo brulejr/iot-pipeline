@@ -10,6 +10,7 @@ package io.brulejr.iotpipeline.dedupe
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Discards a reading already seen from the same transmitter inside the dedupe window.
@@ -27,13 +28,19 @@ class DedupeService(private val datafill: DedupeDatafill) {
         .maximumSize(datafill.maximumDevices)
         .build<String, String>()
 
+    private val unique = AtomicLong()
+    private val duplicates = AtomicLong()
+
     /** True when [reading] should continue down the pipeline. */
     fun isUnique(reading: FingerprintedReading): Boolean {
-        if (!datafill.enabled) return true
+        if (!datafill.enabled) return true.also { unique.incrementAndGet() }
         val device = reading.fingerprint.device
         val event = reading.fingerprint.event
-        if (lastEventByDevice.getIfPresent(device) == event) return false
+        if (lastEventByDevice.getIfPresent(device) == event) return false.also { duplicates.incrementAndGet() }
         lastEventByDevice.put(device, event)
+        unique.incrementAndGet()
         return true
     }
+
+    fun stats() = DedupeStats(unique.get(), duplicates.get(), lastEventByDevice.estimatedSize())
 }

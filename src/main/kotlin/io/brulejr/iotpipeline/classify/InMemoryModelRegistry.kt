@@ -9,7 +9,6 @@
 package io.brulejr.iotpipeline.classify
 
 import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
-import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
@@ -20,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
  * The catalogue is rebuilt from traffic on restart and curated mappings do not survive
  * one, so nothing stays recognised. Use the MongoDB implementation to keep curation.
  */
-class InMemoryModelRegistry(private val jsonMapper: JsonMapper) : ModelRegistryPort {
+class InMemoryModelRegistry : ModelRegistryPort {
 
     private val byFingerprint = ConcurrentHashMap<String, ModelRecord>()
 
@@ -42,11 +41,6 @@ class InMemoryModelRegistry(private val jsonMapper: JsonMapper) : ModelRegistryP
 
     override fun find(fingerprint: String): ModelRecord? = byFingerprint[fingerprint]
 
-    override fun curate(fingerprint: String, category: String, sensors: List<SensorMapping>): CurationResult {
-        val model = byFingerprint[fingerprint] ?: return CurationResult.ModelNotFound
-        validateCuration(model, category, sensors, jsonMapper)?.let { return it }
-        val curated = model.copy(category = category, sensors = sensors)
-        byFingerprint[fingerprint] = curated
-        return CurationResult.Curated(curated)
-    }
+    override fun updateCuration(fingerprint: String, category: String, sensors: List<SensorMapping>): ModelRecord? =
+        byFingerprint.computeIfPresent(fingerprint) { _, model -> model.copy(category = category, sensors = sensors) }
 }

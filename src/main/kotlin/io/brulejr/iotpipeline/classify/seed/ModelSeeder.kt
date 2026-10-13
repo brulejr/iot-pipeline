@@ -8,10 +8,10 @@
  */
 package io.brulejr.iotpipeline.classify.seed
 
+import io.brulejr.iotpipeline.classify.ClassificationDatafill
+import io.brulejr.iotpipeline.classify.ClassificationService
 import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
-import io.brulejr.iotpipeline.classify.ModelRegistryPort
-import io.brulejr.iotpipeline.classify.validateCuration
 import io.brulejr.iotpipeline.fingerprint.sha256Hex
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.ResourceLoader
@@ -26,11 +26,12 @@ import java.time.Instant
  * nothing to restore from.
  *
  * Seeding never overwrites a model that already carries mappings, so curation through
- * the API stays authoritative and a stale seed file cannot silently revert it.
+ * the API stays authoritative and a stale seed file cannot silently revert it. Goes
+ * through [ClassificationService], so a seed is held to the same rules as the API.
  */
 class ModelSeeder(
-    private val registry: ModelRegistryPort,
-    private val datafill: ModelSeedDatafill,
+    private val classification: ClassificationService,
+    private val datafill: ClassificationDatafill.Seed,
     private val jsonMapper: JsonMapper,
     private val resourceLoader: ResourceLoader,
 ) {
@@ -54,17 +55,17 @@ class ModelSeeder(
         var curated = 0
         var leftAlone = 0
         seeds.forEach { seed ->
-            val existing = registry.find(seed.fingerprint)
+            val existing = classification.model(seed.fingerprint)
             when {
                 existing == null -> {
-                    registry.insertIfAbsent(seed.toRecord())
+                    classification.restore(seed.toRecord())
                     restored++
                 }
                 // Curation through the API wins; a seed only fills a gap.
                 existing.recognised -> leftAlone++
                 else -> {
                     when (
-                        val result = registry.curate(seed.fingerprint, seed.category, seed.sensors)
+                        val result = classification.curate(seed.fingerprint, seed.category, seed.sensors)
                     ) {
                         is CurationResult.Curated -> curated++
                         else -> error("Seed for ${seed.describe()} was refused: $result")
@@ -95,7 +96,7 @@ class ModelSeeder(
             "Seed for ${seed.describe()} has fingerprint ${seed.fingerprint}, but its " +
                 "structure hashes to $expected. No reading would ever match it."
         }
-        validateCuration(seed.toRecord(), seed.category, seed.sensors, jsonMapper)?.let { invalid ->
+        classification.validate(seed.toRecord(), seed.category, seed.sensors)?.let { invalid ->
             error(
                 "Seed for ${seed.describe()} is invalid: " +
                     invalid.problems.joinToString("; ") { "${it.field}: ${it.reason}" },

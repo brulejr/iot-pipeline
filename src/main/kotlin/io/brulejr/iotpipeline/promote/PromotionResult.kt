@@ -19,6 +19,3 @@ sealed interface PromotionResult {
      */
     data class Invalid(val problems: List<PromotionProblem>) : PromotionResult
 }
-
-/** One thing wrong with a promotion request. */
-data class PromotionProblem(val field: String, val reason: String)

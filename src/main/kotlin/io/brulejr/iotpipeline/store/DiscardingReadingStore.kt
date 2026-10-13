@@ -16,4 +16,6 @@ import io.brulejr.iotpipeline.parse.ParsedReading
  */
 class DiscardingReadingStore : ReadingStorePort {
     override fun store(reading: ParsedReading) = Unit
+
+    override fun describe() = "nothing: storage is disabled"
 }

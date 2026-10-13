@@ -32,11 +32,19 @@ class TransformConfig {
         HomeAssistantTransformer(datafill.homeAssistant, jsonMapper)
 
     @Bean
-    fun transformFlow(transformer: ReadingTransformerPort, datafill: TransformDatafill) =
+    fun transformService(transformer: ReadingTransformerPort, datafill: TransformDatafill) =
+        TransformService(transformer, datafill)
+
+    @Bean
+    fun transformHealthIndicator(service: TransformService) = TransformHealthIndicator(service)
+
+    @Bean
+    fun transformInfoContributor(datafill: TransformDatafill) = TransformInfoContributor(datafill)
+
+    @Bean
+    fun transformFlow(service: TransformService) =
         integrationFlow(PipelineChannels.STORED) {
-            transform<ParsedReading> { reading ->
-                if (datafill.enabled) transformer.transform(reading) else emptyList()
-            }
+            transform<ParsedReading> { service.transform(it) }
             // One message per outbound item, so each can be published, and fail, on its own.
             split()
             log<OutboundMessage>(LoggingHandler.Level.DEBUG, "pipeline.transform") { message ->

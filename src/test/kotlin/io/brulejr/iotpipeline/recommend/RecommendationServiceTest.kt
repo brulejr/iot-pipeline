@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.recommend
 
+import io.brulejr.iotpipeline.classify.ClassificationService
 import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.classify.InMemoryModelRegistry
 import io.brulejr.iotpipeline.classify.ModelRecord
@@ -15,6 +16,7 @@ import io.brulejr.iotpipeline.classify.SensorMapping
 import io.brulejr.iotpipeline.classify.SensorType
 import io.brulejr.iotpipeline.promote.InMemoryPromotionRegistry
 import io.brulejr.iotpipeline.promote.PromotedDevice
+import io.brulejr.iotpipeline.promote.PromotionService
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
@@ -30,10 +32,15 @@ class RecommendationServiceTest {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val datafill = RecommendationDatafill()
     private val sightings = InMemorySightingRegistry()
-    private val models = InMemoryModelRegistry(JsonMapper.builder().build())
+    private val models = InMemoryModelRegistry()
     private val promotions = InMemoryPromotionRegistry()
     private val service = RecommendationService(
-        sightings, models, promotions, RecommendationScorer(datafill), datafill, clock,
+        sightings,
+        ClassificationService(models, JsonMapper.builder().build()),
+        PromotionService(promotions),
+        RecommendationScorer(datafill),
+        datafill,
+        clock,
     )
 
     private val near = DeviceKey("rtl433", "Acurite-Tower/A/3064")
@@ -55,7 +62,7 @@ class RecommendationServiceTest {
     @Test
     fun `a promoted device is not recommended`() {
         heard(near, (0L..23L).toList(), 15.9)
-        promotions.promote(PromotedDevice(near, "Back garden sensor", "thermometer", "garden", now))
+        promotions.save(PromotedDevice(near, "Back garden sensor", "thermometer", "garden", now))
 
         assertTrue(service.recommendations().isEmpty())
     }

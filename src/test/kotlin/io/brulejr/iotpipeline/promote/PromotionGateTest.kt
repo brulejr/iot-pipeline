@@ -9,6 +9,7 @@
 package io.brulejr.iotpipeline.promote
 
 import io.brulejr.iotpipeline.classify.Classification
+import io.brulejr.iotpipeline.classify.ClassificationService
 import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.classify.ModelRegistryPort
 import io.brulejr.iotpipeline.classify.SensorMapping
@@ -37,9 +38,9 @@ import kotlin.test.assertTrue
 @SpringBootTest(
     properties = [
         "pipeline.ingest.mqtt.enabled=false",
-        "pipeline.model-registry.type=memory",
-        "pipeline.promotion-registry.type=memory",
-        "pipeline.sighting-registry.type=memory",
+        "pipeline.classification.registry=memory",
+        "pipeline.promotion.registry=memory",
+        "pipeline.recommendation.registry=memory",
         // Readings are parsed and then dropped, so no InfluxDB is needed.
         "pipeline.store.enabled=false",
         // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
@@ -68,7 +69,10 @@ class PromotionGateTest {
     lateinit var models: ModelRegistryPort
 
     @Autowired
-    lateinit var promotions: PromotionPort
+    lateinit var classification: ClassificationService
+
+    @Autowired
+    lateinit var promotions: PromotionService
 
     @Autowired
     lateinit var jsonMapper: JsonMapper
@@ -117,7 +121,7 @@ class PromotionGateTest {
     }
 
     private fun curate(marker: String) {
-        models.curate(
+        classification.curate(
             registerModel(marker).fingerprint,
             "weather",
             listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature")),

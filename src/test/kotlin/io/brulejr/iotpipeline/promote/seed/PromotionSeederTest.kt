@@ -11,6 +11,8 @@ package io.brulejr.iotpipeline.promote.seed
 import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.promote.InMemoryPromotionRegistry
 import io.brulejr.iotpipeline.promote.PromotedDevice
+import io.brulejr.iotpipeline.promote.PromotionDatafill
+import io.brulejr.iotpipeline.promote.PromotionService
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.ClassPathResource
@@ -49,8 +51,8 @@ class PromotionSeederTest {
     private fun seeder(
         registry: InMemoryPromotionRegistry,
         json: String?,
-        datafill: PromotionSeedDatafill = PromotionSeedDatafill(),
-    ) = PromotionSeeder(registry, datafill, jsonMapper, loaderOf(json))
+        datafill: PromotionDatafill.Seed = PromotionDatafill.Seed(),
+    ) = PromotionSeeder(PromotionService(registry), datafill, jsonMapper, loaderOf(json))
 
     @Test
     fun `a device the store has no approval for is restored`() {
@@ -67,7 +69,7 @@ class PromotionSeederTest {
     @Test
     fun `an approval already in the store is never overwritten`() {
         val registry = InMemoryPromotionRegistry()
-        registry.promote(PromotedDevice(key, "Shed sensor", "thermometer", "shed", Instant.now()))
+        registry.save(PromotedDevice(key, "Shed sensor", "thermometer", "shed", Instant.now()))
 
         val outcome = seeder(registry, seedJson()).seed()
 
@@ -94,7 +96,7 @@ class PromotionSeederTest {
     fun `seeding can be switched off`() {
         val registry = InMemoryPromotionRegistry()
 
-        val outcome = seeder(registry, seedJson(), PromotionSeedDatafill(enabled = false)).seed()
+        val outcome = seeder(registry, seedJson(), PromotionDatafill.Seed(enabled = false)).seed()
 
         assertEquals(PromotionSeedOutcome(), outcome)
         assertEquals(0, registry.all().size)

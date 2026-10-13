@@ -22,4 +22,14 @@ data class MqttIngestionDatafill(
     val qos: Int = 1,
     /** Source annotation stamped on every envelope from this adapter. */
     val source: String = "rtl433",
-)
+) {
+    init {
+        require(url.isNotBlank()) { "pipeline.ingest.mqtt.url must not be blank" }
+        require(clientId.isNotBlank()) { "pipeline.ingest.mqtt.client-id must not be blank" }
+        require(topics.isNotEmpty() && topics.none { it.isBlank() }) {
+            "pipeline.ingest.mqtt.topics must name at least one topic, none of them blank"
+        }
+        require(qos in 0..2) { "pipeline.ingest.mqtt.qos must be 0, 1 or 2" }
+        require(source.isNotBlank()) { "pipeline.ingest.mqtt.source must not be blank" }
+    }
+}

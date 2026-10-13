@@ -26,10 +26,8 @@ class InMemoryPromotionRegistry : PromotionPort {
 
     override fun all(): List<PromotedDevice> = byKey.values.sortedBy { it.promotedAt }
 
-    override fun promote(device: PromotedDevice): PromotionResult {
-        validatePromotion(device)?.let { return it }
+    override fun save(device: PromotedDevice) {
         byKey[device.deviceKey] = device
-        return PromotionResult.Promoted(device)
     }
 
     override fun demote(deviceKey: DeviceKey): Boolean = byKey.remove(deviceKey) != null

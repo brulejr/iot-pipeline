@@ -8,11 +8,9 @@
  */
 package io.brulejr.iotpipeline.classify.mongo
 
-import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.ModelRegistryPort
 import io.brulejr.iotpipeline.classify.SensorMapping
-import io.brulejr.iotpipeline.classify.validateCuration
 import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.domain.Sort
@@ -20,17 +18,13 @@ import org.springframework.data.mongodb.core.MongoOperations
 import org.springframework.data.mongodb.core.query.Criteria
 import org.springframework.data.mongodb.core.query.Query
 import org.springframework.data.mongodb.core.query.Update
-import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 
 /**
  * MongoDB-backed [ModelRegistryPort], so a discovered model and the sensor mappings
  * curated against it survive a restart.
  */
-class MongoModelRegistry(
-    private val mongo: MongoOperations,
-    private val jsonMapper: JsonMapper,
-) : ModelRegistryPort {
+class MongoModelRegistry(private val mongo: MongoOperations) : ModelRegistryPort {
 
     override fun registerIfAbsent(reading: FingerprintedReading): ModelRecord {
         val fingerprint = reading.fingerprint.model
@@ -67,12 +61,7 @@ class MongoModelRegistry(
     override fun find(fingerprint: String): ModelRecord? =
         mongo.findById(fingerprint, ModelDocument::class.java)?.toRecord()
 
-    override fun curate(fingerprint: String, category: String, sensors: List<SensorMapping>): CurationResult {
-        // Read first: the structure is needed to validate the mappings, and rejecting
-        // them must leave the stored document untouched.
-        val model = find(fingerprint) ?: return CurationResult.ModelNotFound
-        validateCuration(model, category, sensors, jsonMapper)?.let { return it }
-
+    override fun updateCuration(fingerprint: String, category: String, sensors: List<SensorMapping>): ModelRecord? {
         val updated = mongo.update(ModelDocument::class.java)
             .matching(Query(Criteria.where("_id").`is`(fingerprint)))
             .apply(
@@ -81,8 +70,7 @@ class MongoModelRegistry(
                     .set("sensors", sensors.map { SensorMappingDocument.of(it) }),
             )
             .first()
-        // Deleted between the read and the write.
-        if (updated.matchedCount == 0L) return CurationResult.ModelNotFound
-        return find(fingerprint)?.let { CurationResult.Curated(it) } ?: CurationResult.ModelNotFound
+        if (updated.matchedCount == 0L) return null
+        return find(fingerprint)
     }
 }

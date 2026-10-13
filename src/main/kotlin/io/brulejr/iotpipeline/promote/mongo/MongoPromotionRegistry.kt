@@ -11,8 +11,6 @@ package io.brulejr.iotpipeline.promote.mongo
 import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.promote.PromotedDevice
 import io.brulejr.iotpipeline.promote.PromotionPort
-import io.brulejr.iotpipeline.promote.PromotionResult
-import io.brulejr.iotpipeline.promote.validatePromotion
 import org.springframework.data.domain.Sort
 import org.springframework.data.mongodb.core.MongoOperations
 import org.springframework.data.mongodb.core.query.Criteria
@@ -33,11 +31,9 @@ class MongoPromotionRegistry(private val mongo: MongoOperations) : PromotionPort
         .find(Query().with(Sort.by(Sort.Direction.ASC, "promotedAt")), PromotedDeviceDocument::class.java)
         .map { it.toDevice() }
 
-    override fun promote(device: PromotedDevice): PromotionResult {
-        validatePromotion(device)?.let { return it }
+    override fun save(device: PromotedDevice) {
         // Replaces any earlier promotion: re-promoting is how a label gets corrected.
         mongo.save(PromotedDeviceDocument.of(device))
-        return PromotionResult.Promoted(device)
     }
 
     override fun demote(deviceKey: DeviceKey): Boolean = mongo

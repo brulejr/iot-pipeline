@@ -24,8 +24,11 @@ interface PromotionPort {
     /** Every promoted device, oldest promotion first. */
     fun all(): List<PromotedDevice>
 
-    /** Promotes a device, replacing any earlier promotion of it. */
-    fun promote(device: PromotedDevice): PromotionResult
+    /**
+     * Stores a promotion, replacing any earlier one for the same device. Storage only:
+     * [PromotionService] decides whether the promotion is valid.
+     */
+    fun save(device: PromotedDevice)
 
     /** Withdraws a promotion. Returns true if the device had been promoted. */
     fun demote(deviceKey: DeviceKey): Boolean

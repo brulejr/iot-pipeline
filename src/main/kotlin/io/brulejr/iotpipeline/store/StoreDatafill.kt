@@ -30,4 +30,15 @@ data class StoreDatafill(
     val database: String = "sensors",
     val retention: String = "30d",
     val measurement: String = "reading",
-)
+) {
+    init {
+        require(url.isNotBlank()) { "pipeline.store.url must not be blank" }
+        require(database.isNotBlank()) { "pipeline.store.database must not be blank" }
+        require(measurement.isNotBlank()) { "pipeline.store.measurement must not be blank" }
+        // Left blank, the database would be created with no retention period at all,
+        // which is what creating it here exists to prevent.
+        require(retention.isNotBlank()) { "pipeline.store.retention must not be blank" }
+        // The token is checked when the database is created, and only when storage is
+        // enabled, so a context with storage off needs none.
+    }
+}

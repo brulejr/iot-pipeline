@@ -8,12 +8,14 @@
  */
 package io.brulejr.iotpipeline.recommend
 
+import io.brulejr.iotpipeline.pipeline.RegistryType
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
  * Defaults are calibrated against observed rtl_433 traffic, and on few samples, so they
  * are worth revisiting as more devices are seen.
  *
+ * @property registry where hourly sightings are kept.
  * @property enabled when false, sightings are not recorded.
  * @property windowHours how far back scoring looks.
  * @property minHoursHeard how many distinct hours of the window a device must be heard
@@ -41,6 +43,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  */
 @ConfigurationProperties("pipeline.recommendation")
 data class RecommendationDatafill(
+    val registry: RegistryType = RegistryType.MONGO,
     val enabled: Boolean = true,
     val windowHours: Int = 24,
     val minHoursHeard: Int = 3,
