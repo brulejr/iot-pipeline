@@ -1,0 +1,16 @@
+info:
+  name: Get Store Stats
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{iot_pipeline_url}}/api/store"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -1,0 +1,25 @@
+info:
+  name: Preview Parse
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{iot_pipeline_url}}/api/models/:fingerprint/parse"
+  params:
+    - name: fingerprint
+      value: 75ca26ed8cf93935a53a939152a1f4e2c51a7f1eba18b81cae7f31bfd8f7b12f
+      type: path
+  body:
+    type: json
+    data: |-
+      {"model":"Acurite-Tower","id":3064,"channel":"A","battery_ok":1,
+       "temperature_C":21.5,"humidity":48,"mic":"CHECKSUM"}
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

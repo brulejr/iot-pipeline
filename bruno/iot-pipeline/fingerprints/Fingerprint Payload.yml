@@ -1,0 +1,26 @@
+info:
+  name: Fingerprint Payload
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{iot_pipeline_url}}/api/fingerprints?source=rtl433"
+  params:
+    - name: source
+      value: rtl433
+      type: query
+  body:
+    type: json
+    data: |-
+      {"time":"2026-10-12 08:00:00","model":"Acurite-Tower","id":3064,"channel":"A",
+       "battery_ok":1,"temperature_C":21.5,"humidity":48,"mic":"CHECKSUM",
+       "rssi":-0.1,"snr":15.9,"noise":-16.0}
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
