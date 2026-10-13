@@ -18,7 +18,7 @@ package io.brulejr.iotpipeline.pipeline
  *                                  duplicates                  promotion gate
  *                                  (discarded)                     │
  *                       ┌──────────────────────────────────────────┤
- *                       ├─> promoted ──────> knownDevice ──> parsed ──> InfluxDB
+ *                       ├─> promoted ──────> knownDevice ──> parsed ──> InfluxDB ──> stored ──> (transform)
  *                       ├─> promotionGaps    (promoted, model uncurated: logged)
  *                       └─> unknownDevice ──> (recommendation engine)
  * ```
@@ -34,6 +34,7 @@ object PipelineChannels {
     const val PROMOTED = "promotedChannel"
     const val PROMOTION_GAPS = "promotionGapChannel"
     const val PARSED = "parsedChannel"
+    const val STORED = "storedChannel"
     const val DUPLICATES = "duplicateChannel"
     const val KNOWN_DEVICE = "knownDeviceChannel"
     const val UNKNOWN_DEVICE = "unknownDeviceChannel"

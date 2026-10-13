@@ -5,9 +5,10 @@ readings (rtl_433 over MQTT), classifies them, and stores known-device data in
 InfluxDB 3 for Grafana to read. `docs/DESIGN.md` is the authoritative design
 doc: read it before changing pipeline structure.
 
-Status: stages 1-5 work — ingest, fingerprint and dedupe, classification, the
-promotion gate, recommendation of unpromoted devices, parsing, and InfluxDB
-storage. Transformation and publication (stages 6-8) are not started.
+Status: stages 1-6 work — ingest, fingerprint and dedupe, classification, the
+promotion gate, recommendation of unpromoted devices, parsing, InfluxDB storage,
+and shaping for Home Assistant. Publication (stage 7) is not started, so the
+Home Assistant messages are only logged.
 
 @.claude/CONVENTIONS.md
 
@@ -21,7 +22,7 @@ subpackages (`ingest/mqtt/`) that all end by sending a `SensorEnvelope` to
 
 Each stage is fronted by a port interface (`ClassificationPort`,
 `ModelRegistryPort`, `PromotionPort`, `SightingRegistryPort`,
-`ReadingStorePort`), so implementations
+`ReadingStorePort`, `ReadingTransformerPort`), so implementations
 can be swapped without touching the flow wiring. Where a port has a
 database-backed and a database-free implementation, mutually exclusive
 `@ConditionalOnProperty` conditions pick exactly one — the tests select the

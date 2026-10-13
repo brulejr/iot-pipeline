@@ -2,9 +2,9 @@
 
 Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
 and deduplicated, classification identifies device models by structural fingerprint,
-the promotion gate admits only approved devices, their readings are parsed and stored
-in InfluxDB, and unpromoted devices are ranked for promotion; transformation and
-publication (stages 6-8) are not started. Local InfluxDB 3 + Grafana run via Compose. An earlier
+the promotion gate admits only approved devices, their readings are parsed, stored in
+InfluxDB and shaped for Home Assistant, and unpromoted devices are ranked for promotion;
+publication (stage 7) and alerting (stage 8) are not started. Local InfluxDB 3 + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
 ## Goal
@@ -41,7 +41,6 @@ Observability is wanted at each stage.
 ## Open Questions
 
 - Design of circuit breaker and retry mechanics for publishing
-- Details of the transformation stage and its per-consumer mappings
 - Publication and delivery: one stage or two
 - Retention window length and any downsampling policy in InfluxDB
 
@@ -150,7 +149,29 @@ after a week.
 The calibration rests on few samples: a handful of decodes per device other than the
 operator's own tower. Worth revisiting once a few days of sightings have accumulated.
 
+## Transformation
+
+Settled for Home Assistant, the first consumer, behind `ReadingTransformerPort` so a
+second consumer is a second implementation rather than a change upstream. It reads from
+the stored channel, so nothing is shaped for a consumer before it has been kept.
+
+Readings become MQTT device discovery: one retained discovery message per device,
+listing an entity per sensor mapping, and a state message per reading keyed by payload
+field. Field rather than class, because two probes of one class would collide.
+Discovery is resent only when it changes — after startup, or when curation alters a
+device — rather than with every reading as the prototype did.
+
+Ids and topics are derived from the device key, never the operator's free-text name,
+since Home Assistant ids allow only letters, digits, `_` and `-`. Binary values go out
+as plain `ON`/`OFF`: the prototype inverted `battery_ok` and `closed` by field name at
+this point, which the curated `inverted` flag, applied during parsing, replaces.
+
+Units come from rtl_433's field-name convention (`temperature_C`, `pressure_hPa`), not
+from curation. That also fixes the prototype reporting `temperature_F` as Celsius. A
+source that does not encode units in its field names would need them curated.
+
 ## Next Steps
 
+- Publish transformed messages to MQTT (stage 7), with retry that does not
+  re-run the transformation
 - Cover the MongoDB registries with tests against a real database
-- Wire storage (stage 5) to InfluxDB 3, including the retention policy

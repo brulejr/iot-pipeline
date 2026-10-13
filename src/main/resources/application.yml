@@ -89,6 +89,16 @@ pipeline:
     # About 11 dB. Keeps a neighbour's always-on sensor from being flagged.
     min-proximity: 0.5
 
+  # How stored readings are shaped for Home Assistant's MQTT discovery.
+  transform:
+    enabled: true
+    home-assistant:
+      discovery-prefix: homeassistant
+      state-prefix: iot-pipeline
+      origin-name: iot-pipeline
+      # Retained, so Home Assistant shows the last value straight after it restarts.
+      retain-state: true
+
   # Devices approved to pass the gate. `mongo` keeps approvals across restarts;
   # `memory` holds them for the lifetime of the process, which is what the tests use.
   promotion-registry:

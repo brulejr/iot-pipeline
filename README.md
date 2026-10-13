@@ -22,7 +22,7 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | 3. Known/unknown branch | Working — a reading continues only if its device has been promoted |
 | 4. Recommendation engine | Working — ranks unpromoted devices by how persistently and how nearby they are heard |
 | 5. Storage (InfluxDB) | Working — parsed readings are written with a retention period |
-| 6. Transformation | Stub |
+| 6. Transformation | Working — stored readings are shaped for Home Assistant's MQTT discovery; not yet published |
 | 7. Publication | Stub |
 | 8. Alerting | Not started |
 
@@ -94,6 +94,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.parse` | INFO | Values read out of a payload through its model's mappings |
 | `pipeline.store` | DEBUG | Readings written to InfluxDB |
+| `pipeline.transform` | DEBUG | Messages shaped for Home Assistant, with their topics |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
 Each reading produces one line per stage, and each line adds information rather
@@ -414,6 +415,36 @@ Sightings are kept for a week, in MongoDB's `sightings` collection, and expire
 on their own. The thresholds are in `application.yml` under
 `pipeline.recommendation`; they were calibrated on few samples and are worth
 revisiting as more devices are seen.
+
+### Home Assistant messages
+
+After a reading is stored it is shaped for Home Assistant's MQTT discovery. Two
+kinds of message, both visible on `pipeline.transform` until publication is
+built:
+
+| Message | Topic | Retained |
+| --- | --- | --- |
+| Discovery: the device and an entity per sensor mapping | `homeassistant/device/<id>/config` | always |
+| State: one per reading, values keyed by payload field | `iot-pipeline/<id>/state` | `retain-state`, default yes |
+
+`<id>` comes from the device key — `rtl433_acurite_tower_a_3064` — never from the
+name you gave it, which is free text: Home Assistant ids allow only letters,
+digits, `_` and `-`. The name appears as the device's display name instead, and
+the area as its suggested area.
+
+Discovery is sent only when it changes: once after startup, and again when a
+curation alters what the device reports. Each analog mapping becomes a `sensor`
+with `state_class: measurement`, so Home Assistant keeps long-term statistics
+for it; each binary mapping becomes a `binary_sensor` reporting plain `ON` and
+`OFF`, the mapping's `inverted` flag having been applied when the payload was
+parsed.
+
+Units are read from rtl_433's field names, which carry them: `temperature_C` is
+°C, `temperature_F` °F, `pressure_hPa` hPa, `wind_avg_km_h` km/h, `humidity` %.
+A field whose name carries no unit is sent without one.
+
+Prefixes and retention are under `pipeline.transform.home-assistant` in
+`application.yml`.
 
 ### Promoting a device
 

@@ -70,6 +70,7 @@ class PipelineTopologyTest {
         PipelineChannels.PROMOTION_GAPS,
         PipelineChannels.KNOWN_DEVICE,
         PipelineChannels.PARSED,
+        PipelineChannels.STORED,
         PipelineChannels.UNKNOWN_DEVICE,
         PipelineChannels.INGEST_ERRORS,
     )
@@ -90,6 +91,7 @@ class PipelineTopologyTest {
             PipelineChannels.UNKNOWN_DEVICE to Wiring(setOf("recommendationFlow"), setOf("promotionGateFlow")),
             PipelineChannels.KNOWN_DEVICE to Wiring(setOf("parseFlow"), setOf("promotedReadingFlow")),
             PipelineChannels.PARSED to Wiring(setOf("storeFlow"), setOf("parseFlow")),
+            PipelineChannels.STORED to Wiring(setOf("transformFlow"), setOf("storeFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),
         )

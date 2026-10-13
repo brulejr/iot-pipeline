@@ -58,6 +58,7 @@ class StoreFlowConfig {
             val reading = message.payload
             "stored ${reading.values.size} value(s) for ${reading.device.deviceKey.id}"
         }
-        nullChannel()
+        // Onward to transformation, only once the reading is kept.
+        channel(PipelineChannels.STORED)
     }
 }
