@@ -137,8 +137,11 @@ management:
       base-path: /mgmt
       exposure:
         include: health,info,metrics,integrationgraph
-  health:
-    show-details: always
+  endpoint:
+    health:
+      # Each feature's indicator, with its details. Not `management.health.*`, which
+      # configures the indicators themselves rather than what the endpoint shows.
+      show-details: always
   info:
     build.enabled: true
     env.enabled: true
