@@ -22,7 +22,7 @@ import tools.jackson.databind.json.JsonMapper
  *
  * Reads from the stored channel, so a reading is only transformed once it has been
  * kept: storage is the neutral boundary and everything consumer-specific happens after
- * it. Publication is not built yet, so the messages end here, logged.
+ * it. Each message then goes on to publication on its own.
  */
 @Configuration
 class TransformConfig {
@@ -51,7 +51,6 @@ class TransformConfig {
                 val outbound = message.payload
                 "${outbound.topic}${if (outbound.retained) " (retained)" else ""}: ${outbound.payload}"
             }
-            // TODO stage 7: publish these to MQTT.
-            nullChannel()
+            channel(PipelineChannels.OUTBOUND)
         }
 }

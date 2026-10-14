@@ -22,8 +22,8 @@ Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
 | 3. Known/unknown branch | Working — a reading continues only if its device has been promoted |
 | 4. Recommendation engine | Working — ranks unpromoted devices by how persistently and how nearby they are heard |
 | 5. Storage (InfluxDB) | Working — parsed readings are written with a retention period |
-| 6. Transformation | Working — stored readings are shaped for Home Assistant's MQTT discovery; not yet published |
-| 7. Publication | Stub |
+| 6. Transformation | Working — stored readings are shaped for Home Assistant's MQTT discovery |
+| 7. Publication | Working — published to the consumer's broker; failures are held, latest per topic, and retried |
 | 8. Alerting | Not started |
 
 [`docs/DESIGN.md`](docs/DESIGN.md) is the authoritative design document and
@@ -95,6 +95,7 @@ Each feature also has an endpoint of its own:
 | `POST /api/models/{fingerprint}/parse` | What a payload would parse to under a model's curation |
 | `GET /api/store` | Readings and values written, and failed writes |
 | `GET /api/outbound-messages` | The latest Home Assistant message for each topic |
+| `GET /api/publish`, `GET /api/publish/pending`, `POST /api/publish/flush` | Publication counts, messages held for retry, and a retry now |
 
 ### Seeing readings
 
@@ -113,6 +114,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.parse` | INFO | Values read out of a payload through its model's mappings; WARN for an incomplete reading dropped by `pipeline.parse.drop-incomplete` |
 | `pipeline.store` | DEBUG | Readings written to InfluxDB |
 | `pipeline.transform` | DEBUG | Messages shaped for Home Assistant, with their topics |
+| `pipeline.publish` | DEBUG | Each message published; WARN when the broker fails, INFO when held messages are delivered |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
 
 Each reading produces one line per stage, and each line adds information rather
@@ -193,6 +195,10 @@ configuration at all. Override via environment variables:
 | `MODEL_REGISTRY` | `mongo` | Where models are kept: `mongo` or `memory` |
 | `PROMOTION_REGISTRY` | `mongo` | Where device approvals are kept: `mongo` or `memory` |
 | `SIGHTING_REGISTRY` | `mongo` | Where sightings of unpromoted devices are kept: `mongo` or `memory` |
+| `PUBLISH_MQTT_URL` | `tcp://localhost:1883` | Broker Home Assistant listens on, separate from the ingest one |
+| `PUBLISH_MQTT_CLIENT_ID` | `iot-pipeline-publisher` | MQTT client identifier for publishing; must differ from the ingest one |
+| `PIPELINE_PUBLISH_MQTT_USERNAME` | — | Publishing broker username, if required |
+| `PIPELINE_PUBLISH_MQTT_PASSWORD` | — | Publishing broker password, if required |
 
 Set `pipeline.ingest.mqtt.enabled=false` to start the application without the
 MQTT adapter, which is useful when working on later stages without a broker.
@@ -245,6 +251,7 @@ src/main/kotlin/io/brulejr/iotpipeline/
 ├── parse/            # Stage 5 — values read through sensor mappings
 ├── store/            #   InfluxDB storage
 ├── transform/        # Stage 6 — shaping for Home Assistant
+├── publish/          # Stage 7 — delivery to the consumer's broker
 └── pipeline/         # Cross-cutting: channels, error log, registry choice
 ```
 
@@ -447,9 +454,9 @@ revisiting as more devices are seen.
 
 ### Home Assistant messages
 
-After a reading is stored it is shaped for Home Assistant's MQTT discovery. Two
-kinds of message, both visible on `pipeline.transform` until publication is
-built:
+After a reading is stored it is shaped for Home Assistant's MQTT discovery and
+published to the broker Home Assistant listens on (`PUBLISH_MQTT_URL`). Two
+kinds of message, both visible on `pipeline.transform`:
 
 | Message | Topic | Retained |
 | --- | --- | --- |
@@ -474,6 +481,18 @@ A field whose name carries no unit is sent without one.
 
 Prefixes and retention are under `pipeline.transform.home-assistant` in
 `application.yml`.
+
+Publication is on by default; set `pipeline.publish.enabled=false` to shape
+messages without sending them. When the broker cannot be reached, nothing is
+lost that matters: the failed message is held, and so is everything after it,
+one per topic — a newer state replaces the one waiting, since Home Assistant
+only wants the latest and every reading is in InfluxDB anyway. Held messages
+are retried in arrival order after a backoff that doubles from
+`pipeline.publish.retry.initial-backoff` up to `max-backoff`, and health reports
+`publish` DOWN until they are delivered. `GET /api/publish/pending` shows what
+is waiting; `POST /api/publish/flush` retries at once. Held messages are kept in
+memory, so a restart drops them, but discovery is sent again after a restart and
+the next reading brings fresh state.
 
 ### Promoting a device
 

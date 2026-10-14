@@ -43,6 +43,8 @@ import kotlin.test.assertTrue
         "pipeline.recommendation.registry=memory",
         // Readings are parsed and then dropped, so no InfluxDB is needed.
         "pipeline.store.enabled=false",
+        // Nothing is published, so no broker is needed or reached.
+        "pipeline.publish.enabled=false",
         // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
         "spring.mongodb.uri=mongodb://127.0.0.1:1/unused",
     ],

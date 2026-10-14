@@ -5,10 +5,10 @@ readings (rtl_433 over MQTT), classifies them, and stores known-device data in
 InfluxDB 3 for Grafana to read. `docs/DESIGN.md` is the authoritative design
 doc: read it before changing pipeline structure.
 
-Status: stages 1-6 work — ingest, fingerprint and dedupe, classification, the
+Status: stages 1-7 work — ingest, fingerprint and dedupe, classification, the
 promotion gate, recommendation of unpromoted devices, parsing, InfluxDB storage,
-and shaping for Home Assistant. Publication (stage 7) is not started, so the
-Home Assistant messages are only logged.
+shaping for Home Assistant, and publication to the consumer's MQTT broker.
+Alerting (stage 8) is not started.
 
 @.claude/CONVENTIONS.md
 
@@ -16,7 +16,7 @@ Home Assistant messages are only logged.
 
 One package per feature, each a pipeline stage (`ingest/mqtt/`, `fingerprint/`,
 `dedupe/`, `classify/`, `promote/`, `recommend/`, `parse/`, `store/`,
-`transform/`). Following the conventions, each feature has exactly one
+`transform/`, `publish/`). Following the conventions, each feature has exactly one
 `*Config` declaring all its beans and flows, a validated `*Datafill`, a
 `*Service` holding its logic (flows and controllers only call it), a
 `*Controller` under `api/`, a `*HealthIndicator` and a `*InfoContributor`.
@@ -63,6 +63,10 @@ docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000, Explor
   built when the Mongo template is created, which connects at startup even with
   every registry in memory. A registry that needs an index creates it itself.
   Tests point `spring.mongodb.uri` at `127.0.0.1:1`, never a real server.
+- Publication goes to its own broker (`pipeline.publish.mqtt.*`,
+  `PUBLISH_MQTT_URL`), not the ingest one, and is on by default. Spring tests set
+  `pipeline.publish.enabled=false` so nothing reaches a broker; keep that in any
+  new `@SpringBootTest`.
 - Startup fails if InfluxDB is unreachable, by design: the app creates its
   database with a retention period before anything is written. Set
   `pipeline.store.enabled=false` to run without it.

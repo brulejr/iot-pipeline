@@ -3,8 +3,8 @@
 Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
 and deduplicated, classification identifies device models by structural fingerprint,
 the promotion gate admits only approved devices, their readings are parsed, stored in
-InfluxDB and shaped for Home Assistant, and unpromoted devices are ranked for promotion;
-publication (stage 7) and alerting (stage 8) are not started. Local InfluxDB 3 + Grafana run via Compose. An earlier
+InfluxDB, shaped for Home Assistant and published to its broker, and unpromoted devices
+are ranked for promotion; alerting (stage 8) is not started. Local InfluxDB 3 + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
 ## Goal
@@ -33,15 +33,13 @@ Ingest sensor data (initially JSON from RTL-SDR via rtl_433 over MQTT), classify
 4. **Recommendation engine.** Evaluates unknown devices by frequency and proximity to decide whether they are worth tracking. The antenna hears any 433 MHz device in range (neighbors, noise), so most are not of interest. Promotion to "known" is a manual review/approve step for now; more AI-driven promotion is a possible future direction.
 5. **Storage.** Known-device data lands in InfluxDB with a retention policy so data ages out automatically. Storage is the neutral handoff boundary; everything before it is consumer-agnostic.
 6. **Transformation.** Reshapes neutral stored data into the format a specific consumer needs (e.g. Home Assistant).
-7. **Publication / delivery.** Publishes the transformed data. Circuit-breaker-style retry handling so a failed publish does not force re-running the transformation. Whether publication and delivery are one stage or two is undecided.
+7. **Publication / delivery.** Publishes the transformed data. Circuit-breaker-style retry handling so a failed publish does not force re-running the transformation. One stage; see Publication below.
 8. **Alerting (future).** Possible later stage for broadcasting particular high-priority event types. Out of immediate scope.
 
 Observability is wanted at each stage.
 
 ## Open Questions
 
-- Design of circuit breaker and retry mechanics for publishing
-- Publication and delivery: one stage or two
 - Retention window length and any downsampling policy in InfluxDB
 
 ## Fingerprinting, Dedupe and Model Identification
@@ -170,8 +168,29 @@ Units come from rtl_433's field-name convention (`temperature_C`, `pressure_hPa`
 from curation. That also fixes the prototype reporting `temperature_F` as Celsius. A
 source that does not encode units in its field names would need them curated.
 
+## Publication
+
+Settled as one stage, publishing to the consumer's own MQTT broker rather than the
+ingest one. It takes the transformer's messages one at a time, so a failure costs one
+message rather than re-running anything upstream.
+
+A message that cannot be delivered is held in memory, and so is everything after it
+until the broker is back, at most one per topic: a newer message for a topic replaces
+the held one and joins the back of the line. Holding is bounded by the number of
+devices however long the outage, and drops nothing a consumer needs, since it only
+wants the latest state and every reading is in InfluxDB. It does keep discovery, which
+matters because the transformer sends a device's discovery only when it changes.
+
+While anything is held the circuit is open: new messages are held rather than tried,
+so none overtakes one already waiting, and the held messages are retried in arrival
+order after a backoff that doubles with each failed retry, up to a ceiling. The first
+complete flush closes it. A persistent outbox was considered and rejected: a restart
+already re-sends discovery and the next reading refreshes state, so persisting would
+add a write per message to keep only stale states.
+
+Paho's own reconnection is off; the service decides when to try again, so health can
+say plainly whether the broker is answering.
+
 ## Next Steps
 
-- Publish transformed messages to MQTT (stage 7), with retry that does not
-  re-run the transformation
 - Cover the MongoDB registries with tests against a real database

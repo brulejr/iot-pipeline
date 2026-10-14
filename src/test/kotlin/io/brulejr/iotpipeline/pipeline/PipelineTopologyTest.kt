@@ -39,6 +39,8 @@ import kotlin.test.assertEquals
         "pipeline.recommendation.registry=memory",
         // Readings are parsed and then dropped, so no InfluxDB is needed.
         "pipeline.store.enabled=false",
+        // Nothing is published, so no broker is needed or reached.
+        "pipeline.publish.enabled=false",
         // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
         "spring.mongodb.uri=mongodb://127.0.0.1:1/unused",
     ],
@@ -72,6 +74,7 @@ class PipelineTopologyTest {
         PipelineChannels.PARSED,
         PipelineChannels.INCOMPLETE_READINGS,
         PipelineChannels.STORED,
+        PipelineChannels.OUTBOUND,
         PipelineChannels.UNKNOWN_DEVICE,
         PipelineChannels.INGEST_ERRORS,
     )
@@ -95,6 +98,7 @@ class PipelineTopologyTest {
             // Parse's discard path, taken only when incomplete readings are dropped.
             PipelineChannels.INCOMPLETE_READINGS to Wiring(setOf("incompleteReadingFlow"), setOf("parseFlow")),
             PipelineChannels.STORED to Wiring(setOf("transformFlow"), setOf("storeFlow")),
+            PipelineChannels.OUTBOUND to Wiring(setOf("publishFlow"), setOf("transformFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),
         )

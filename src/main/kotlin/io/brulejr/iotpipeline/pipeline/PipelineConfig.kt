@@ -49,6 +49,9 @@ class PipelineConfig {
     @Bean(PipelineChannels.STORED)
     fun storedChannel(): MessageChannel = DirectChannel()
 
+    @Bean(PipelineChannels.OUTBOUND)
+    fun outboundChannel(): MessageChannel = DirectChannel()
+
     @Bean(PipelineChannels.DUPLICATES)
     fun duplicateChannel(): MessageChannel = DirectChannel()
 
