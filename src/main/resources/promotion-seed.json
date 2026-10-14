@@ -4,8 +4,8 @@
       "source": "rtl433",
       "id": "Acurite-Tower/A/3064"
     },
-    "name": "Back garden sensor",
+    "name": "Lab Weather sensor",
     "type": "thermometer",
-    "area": "garden"
+    "area": "lab"
   }
 ]
