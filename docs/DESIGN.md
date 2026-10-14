@@ -106,9 +106,11 @@ promoted without a person.
 
 Settled: one point per value rather than per reading, so each sensor is its own series.
 A model gaining or losing a mapping does not reshape what is already stored, and a query
-for temperature need not know which models report it. Tags carry what is worth filtering
-by — the device key, the operator's name/type/area, the model and its category, and the
-sensor's class. Analog and binary values use separate fields because InfluxDB fixes a
+for temperature need not know which models report it. Tags carry only what
+identifies a series and cannot be relabelled — the device key, the model and its
+category, and the sensor's class. The operator's name, type and area are fields
+(`device_name`, `device_type`, `device_area`), recording the labels a reading was taken
+under: as tags, relabelling a device split its history into a new series. Analog and binary values use separate fields because InfluxDB fixes a
 field's type on first write.
 
 The application creates its own database with the retention period, before anything is

@@ -366,7 +366,7 @@ From the command line:
 ```bash
 set -a; . ./.env; set +a
 docker compose exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
-  "SELECT time, name, sensor, value, state FROM reading ORDER BY time DESC LIMIT 10"
+  "SELECT time, device_name, sensor, value, state FROM reading ORDER BY time DESC LIMIT 10"
 ```
 
 ### Stored readings
@@ -375,20 +375,30 @@ A promoted device's readings are parsed through its model's mappings and written
 to InfluxDB, one point per value:
 
 ```sql
-SELECT time, name, area, category, model, sensor, value, state
+SELECT time, device_name, device_area, category, model, sensor, value, state
 FROM reading ORDER BY time DESC
 ```
 
 | Tag | |
 | --- | --- |
 | `source`, `device` | The device key, as the gate and classifier print it |
-| `name`, `type`, `area` | What the device is to you, from its promotion |
 | `model`, `category` | What kind of device it is, from the model |
 | `sensor` | The mapping's `classname` — `temperature`, `battery`, and so on |
 
-The value is the only field: `value` for an analog reading, `state` for a
-binary one. They are separate fields because InfluxDB fixes a field's type on
-first write, so one field could not hold both. One point per value rather than
+| Field | |
+| --- | --- |
+| `value` / `state` | The reading: `value` for an analog one, `state` for a binary one |
+| `device_name`, `device_type`, `device_area` | What the device was to you when the reading was taken, from its promotion |
+
+Tags hold only what cannot be relabelled, so a device's history stays one series
+when you rename or move it: filter and group on `device`, and read the labels
+from the fields. `value` and `state` are separate because InfluxDB fixes a
+field's type on first write, so one field could not hold both.
+
+Readings written before 2026-10-14 carry the labels as tags named `name`,
+`type` and `area` instead; InfluxDB will not reuse a tag's name for a field,
+hence the `device_` prefix. Until those rows age out under the retention period,
+`COALESCE(device_name, name)` reads either. One point per value rather than
 per reading means each sensor is a series in its own right, so a model gaining
 or losing a mapping does not reshape what is already stored.
 
@@ -522,6 +532,17 @@ goes to its discovery topic, which Home Assistant treats as deleting the device,
 and another to its state topic, so the broker stops keeping its last reading.
 Both go through publication, so a broker outage holds them like any other
 message. Promoting the device again recreates it with its next reading.
+
+To relabel a device, promote it again with the new `name`, `type` or `area`.
+Its next reading sends Home Assistant updated discovery, and the change shows
+up on the existing device — with one exception. Home Assistant uses
+`suggested_area` only when it creates a device, so a changed area is ignored
+for one it already has. Either set the area in Home Assistant, which keeps the
+device and its history as they are, or demote and promote the device, so Home
+Assistant deletes it and creates it again in the new area. That costs the
+readings that arrive between the two calls, and may briefly break the device's
+graphs in Home Assistant. Stored readings are unaffected either way: the labels
+are fields, not tags, so the device's history stays one series.
 
 The gate sends a reading one of three ways:
 
