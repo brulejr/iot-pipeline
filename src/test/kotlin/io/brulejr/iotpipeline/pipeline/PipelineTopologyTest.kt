@@ -75,6 +75,7 @@ class PipelineTopologyTest {
         PipelineChannels.INCOMPLETE_READINGS,
         PipelineChannels.STORED,
         PipelineChannels.OUTBOUND,
+        PipelineChannels.DEMOTED,
         PipelineChannels.UNKNOWN_DEVICE,
         PipelineChannels.INGEST_ERRORS,
     )
@@ -98,7 +99,9 @@ class PipelineTopologyTest {
             // Parse's discard path, taken only when incomplete readings are dropped.
             PipelineChannels.INCOMPLETE_READINGS to Wiring(setOf("incompleteReadingFlow"), setOf("parseFlow")),
             PipelineChannels.STORED to Wiring(setOf("transformFlow"), setOf("storeFlow")),
-            PipelineChannels.OUTBOUND to Wiring(setOf("publishFlow"), setOf("transformFlow")),
+            PipelineChannels.OUTBOUND to Wiring(setOf("publishFlow"), setOf("transformFlow", "demotionFlow")),
+            // Sent to by PromotionService when a device is demoted, not by a flow.
+            PipelineChannels.DEMOTED to Wiring(subscribers = setOf("demotionFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),
         )

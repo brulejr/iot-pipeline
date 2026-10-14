@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.transform
 
+import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.parse.ParsedReading
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -25,6 +26,7 @@ class TransformService(
 ) {
 
     private val readings = AtomicLong()
+    private val removed = AtomicLong()
     private val messages = AtomicLong()
     private val latestByTopic = ConcurrentHashMap<String, OutboundMessage>()
 
@@ -38,8 +40,21 @@ class TransformService(
         return outbound
     }
 
+    /**
+     * The messages that withdraw a demoted device from the consumer; none when
+     * transformation is off.
+     */
+    fun remove(deviceKey: DeviceKey): List<OutboundMessage> {
+        if (!datafill.enabled) return emptyList()
+        val outbound = transformer.remove(deviceKey)
+        removed.incrementAndGet()
+        messages.addAndGet(outbound.size.toLong())
+        outbound.forEach { latestByTopic[it.topic] = it }
+        return outbound
+    }
+
     /** The last message produced for each topic, ordered by topic. */
     fun latest(): List<OutboundMessage> = latestByTopic.values.sortedBy { it.topic }
 
-    fun stats() = TransformStats(readings.get(), messages.get(), latestByTopic.size)
+    fun stats() = TransformStats(readings.get(), messages.get(), latestByTopic.size, removed.get())
 }

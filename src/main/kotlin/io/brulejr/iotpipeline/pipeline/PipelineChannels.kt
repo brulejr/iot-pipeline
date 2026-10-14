@@ -23,6 +23,8 @@ package io.brulejr.iotpipeline.pipeline
  *                       │                 incompleteReadings (when dropped: logged)
  *                       ├─> promotionGaps    (promoted, model uncurated: logged)
  *                       └─> unknownDevice ──> (recommendation engine)
+ *
+ * [demotion API] ──> demoted ──> (transform: withdraw) ──> outbound
  * ```
  *
  * Every ingestion adapter, whatever its transport, ends by sending a
@@ -39,6 +41,7 @@ object PipelineChannels {
     const val INCOMPLETE_READINGS = "incompleteReadingChannel"
     const val STORED = "storedChannel"
     const val OUTBOUND = "outboundChannel"
+    const val DEMOTED = "demotedChannel"
     const val DUPLICATES = "duplicateChannel"
     const val KNOWN_DEVICE = "knownDeviceChannel"
     const val UNKNOWN_DEVICE = "unknownDeviceChannel"

@@ -14,9 +14,11 @@ package io.brulejr.iotpipeline.transform
  * @property readings readings transformed.
  * @property messages outbound messages those readings became.
  * @property topics distinct topics those messages went to.
+ * @property removed demoted devices withdrawn from the consumer.
  */
 data class TransformStats(
     val readings: Long,
     val messages: Long,
     val topics: Int,
+    val removed: Long = 0,
 )

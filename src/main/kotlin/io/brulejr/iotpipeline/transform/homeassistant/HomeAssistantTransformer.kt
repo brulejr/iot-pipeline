@@ -29,6 +29,11 @@ import java.util.concurrent.ConcurrentHashMap
  * not resent until something changes; it is retained, so the broker keeps the last one
  * that did.
  *
+ * A demoted device is withdrawn by clearing what the broker retains for it: an empty
+ * retained discovery is how Home Assistant is told to delete a device, and an empty
+ * retained state stops the broker handing its last reading to anyone who subscribes.
+ * The device's last discovery is forgotten too, so promoting it again recreates it.
+ *
  * Topics and ids come from the device key, never the device's name, which is free text
  * a person chose: Home Assistant ids are restricted to letters, digits, `_` and `-`.
  */
@@ -42,17 +47,32 @@ class HomeAssistantTransformer(
     override fun transform(reading: ParsedReading): List<OutboundMessage> {
         if (reading.values.isEmpty()) return emptyList()
         val id = idOf(reading.device.deviceKey)
-        val stateTopic = "${datafill.statePrefix}/$id/state"
+        val stateTopic = stateTopicOf(id)
         val discovery = jsonMapper.writeValueAsString(discoveryOf(reading, id, stateTopic))
 
         return buildList {
             // Discovery first: Home Assistant ignores state for an entity it does not know.
             if (lastDiscovery.put(id, discovery) != discovery) {
-                add(OutboundMessage("${datafill.discoveryPrefix}/device/$id/config", discovery, retained = true))
+                add(OutboundMessage(discoveryTopicOf(id), discovery, retained = true))
             }
             add(OutboundMessage(stateTopic, jsonMapper.writeValueAsString(stateOf(reading)), datafill.retainState))
         }
     }
+
+    override fun remove(deviceKey: DeviceKey): List<OutboundMessage> {
+        val id = idOf(deviceKey)
+        lastDiscovery.remove(id)
+        return buildList {
+            // Discovery first, so Home Assistant drops the entities before their state goes.
+            add(OutboundMessage(discoveryTopicOf(id), "", retained = true))
+            // Only retained state lingers on the broker; anything else is already gone.
+            if (datafill.retainState) add(OutboundMessage(stateTopicOf(id), "", retained = true))
+        }
+    }
+
+    private fun discoveryTopicOf(id: String) = "${datafill.discoveryPrefix}/device/$id/config"
+
+    private fun stateTopicOf(id: String) = "${datafill.statePrefix}/$id/state"
 
     private fun discoveryOf(reading: ParsedReading, id: String, stateTopic: String) = HomeAssistantDiscovery(
         device = HomeAssistantDevice(

@@ -180,4 +180,40 @@ class HomeAssistantTransformerTest {
     fun `a reading with no values sends nothing`() {
         assertTrue(transformer().transform(reading(values = emptyList())).isEmpty())
     }
+
+    private val key = DeviceKey("rtl433", "Acurite-Tower/A/3064")
+
+    @Test
+    fun `a demoted device has its discovery and retained state cleared`() {
+        val messages = transformer().remove(key)
+
+        assertEquals(
+            listOf(
+                "homeassistant/device/rtl433_acurite_tower_a_3064/config",
+                "iot-pipeline/rtl433_acurite_tower_a_3064/state",
+            ),
+            messages.map { it.topic },
+        )
+        // An empty retained message is what deletes a retained one, and the device with it.
+        assertTrue(messages.all { it.payload.isEmpty() && it.retained })
+    }
+
+    @Test
+    fun `state that is not retained needs no clearing`() {
+        val messages = transformer(TransformDatafill.HomeAssistant(retainState = false)).remove(key)
+
+        assertEquals(listOf("homeassistant/device/rtl433_acurite_tower_a_3064/config"), messages.map { it.topic })
+    }
+
+    @Test
+    fun `a device promoted again after demotion is rediscovered`() {
+        val transformer = transformer()
+        transformer.transform(reading())
+        transformer.remove(key)
+
+        val messages = transformer.transform(reading())
+
+        assertEquals("homeassistant/device/rtl433_acurite_tower_a_3064/config", messages.first().topic)
+        assertTrue(messages.first().payload.isNotEmpty())
+    }
 }

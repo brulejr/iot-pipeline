@@ -159,6 +159,12 @@ field. Field rather than class, because two probes of one class would collide.
 Discovery is resent only when it changes — after startup, or when curation alters a
 device — rather than with every reading as the prototype did.
 
+Demotion withdraws a device: the promotion service reports it on the `demoted` channel,
+and the transformer answers with empty retained messages for the device's discovery and
+(when retained) state topics, which deletes the device in Home Assistant and clears what
+the broker keeps. The transformer forgets the device's discovery, so promoting it again
+recreates it. Removal goes through publication like everything else, outbox included.
+
 Ids and topics are derived from the device key, never the operator's free-text name,
 since Home Assistant ids allow only letters, digits, `_` and `-`. Binary values go out
 as plain `ON`/`OFF`: the prototype inverted `battery_ok` and `closed` by field name at

@@ -15,6 +15,7 @@ import io.brulejr.iotpipeline.pipeline.requireResolvedMongoUri
 import io.brulejr.iotpipeline.promote.mongo.MongoPromotionRegistry
 import io.brulejr.iotpipeline.promote.seed.PromotionSeeder
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.ApplicationRunner
 import org.springframework.boot.mongodb.autoconfigure.MongoProperties
 import org.springframework.context.annotation.Bean
@@ -23,6 +24,8 @@ import org.springframework.core.io.ResourceLoader
 import org.springframework.data.mongodb.core.MongoOperations
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
+import org.springframework.messaging.MessageChannel
+import org.springframework.messaging.support.MessageBuilder
 import tools.jackson.databind.json.JsonMapper
 
 /**
@@ -50,7 +53,10 @@ class PromotionConfig {
     }
 
     @Bean
-    fun promotionService(registry: PromotionPort) = PromotionService(registry)
+    fun promotionService(
+        registry: PromotionPort,
+        @Qualifier(PipelineChannels.DEMOTED) demoted: MessageChannel,
+    ) = PromotionService(registry) { deviceKey -> demoted.send(MessageBuilder.withPayload(deviceKey).build()) }
 
     @Bean
     fun promotionHealthIndicator(service: PromotionService) = PromotionHealthIndicator(service)

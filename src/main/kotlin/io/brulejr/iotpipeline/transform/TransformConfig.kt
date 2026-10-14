@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.transform
 
+import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.parse.ParsedReading
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
 import io.brulejr.iotpipeline.transform.homeassistant.HomeAssistantTransformer
@@ -53,4 +54,15 @@ class TransformConfig {
             }
             channel(PipelineChannels.OUTBOUND)
         }
+
+    /** A demoted device is withdrawn from the consumer through the same publication. */
+    @Bean
+    fun demotionFlow(service: TransformService) = integrationFlow(PipelineChannels.DEMOTED) {
+        transform<DeviceKey> { service.remove(it) }
+        split()
+        log<OutboundMessage>(LoggingHandler.Level.INFO, "pipeline.transform") { message ->
+            "withdrawing demoted device: cleared ${message.payload.topic}"
+        }
+        channel(PipelineChannels.OUTBOUND)
+    }
 }

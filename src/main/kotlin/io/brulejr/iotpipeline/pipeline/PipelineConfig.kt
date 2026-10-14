@@ -52,6 +52,9 @@ class PipelineConfig {
     @Bean(PipelineChannels.OUTBOUND)
     fun outboundChannel(): MessageChannel = DirectChannel()
 
+    @Bean(PipelineChannels.DEMOTED)
+    fun demotedChannel(): MessageChannel = DirectChannel()
+
     @Bean(PipelineChannels.DUPLICATES)
     fun duplicateChannel(): MessageChannel = DirectChannel()
 

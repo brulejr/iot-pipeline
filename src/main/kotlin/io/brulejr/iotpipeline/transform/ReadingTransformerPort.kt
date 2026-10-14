@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.transform
 
+import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.parse.ParsedReading
 
 /**
@@ -20,4 +21,10 @@ fun interface ReadingTransformerPort {
 
     /** The messages [reading] becomes, in the order they must be delivered. */
     fun transform(reading: ParsedReading): List<OutboundMessage>
+
+    /**
+     * The messages that withdraw a demoted device from the consumer, in delivery order.
+     * None by default, for a consumer that keeps nothing between messages.
+     */
+    fun remove(deviceKey: DeviceKey): List<OutboundMessage> = emptyList()
 }

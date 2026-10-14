@@ -12,7 +12,9 @@ import io.brulejr.iotpipeline.classify.DeviceKey
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class PromotionServiceTest {
 
@@ -55,5 +57,27 @@ class PromotionServiceTest {
 
         val rejected = assertIs<PromotionResult.Invalid>(result)
         assertEquals(listOf("source", "deviceId"), rejected.problems.map { it.field })
+    }
+
+    @Test
+    fun `demoting a promoted device tells consumers it is gone`() {
+        val registry = InMemoryPromotionRegistry()
+        val demoted = mutableListOf<DeviceKey>()
+        val service = PromotionService(registry) { demoted += it }
+        service.promote(device())
+
+        assertTrue(service.demote(key))
+
+        assertEquals(listOf(key), demoted)
+    }
+
+    @Test
+    fun `demoting a device that was never promoted tells nobody`() {
+        val demoted = mutableListOf<DeviceKey>()
+        val service = PromotionService(InMemoryPromotionRegistry()) { demoted += it }
+
+        assertFalse(service.demote(key))
+
+        assertTrue(demoted.isEmpty())
     }
 }

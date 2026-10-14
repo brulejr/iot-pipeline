@@ -19,7 +19,10 @@ import java.util.concurrent.atomic.AtomicLong
  * Promotion is the manual review step the design calls for: the recommendation engine
  * suggests candidates, but nothing is promoted without someone saying so.
  */
-class PromotionService(private val registry: PromotionPort) {
+class PromotionService(
+    private val registry: PromotionPort,
+    private val onDemoted: (DeviceKey) -> Unit = {},
+) {
 
     private val promoted = AtomicLong()
     private val promotedButUnreadable = AtomicLong()
@@ -41,8 +44,12 @@ class PromotionService(private val registry: PromotionPort) {
         return PromotionResult.Promoted(device)
     }
 
-    /** Withdraws a promotion. Returns true if the device had been promoted. */
-    fun demote(deviceKey: DeviceKey): Boolean = registry.demote(deviceKey)
+    /**
+     * Withdraws a promotion. Returns true if the device had been promoted, in which case
+     * [onDemoted] is told, so consumers can be told the device is gone.
+     */
+    fun demote(deviceKey: DeviceKey): Boolean =
+        registry.demote(deviceKey).also { demoted -> if (demoted) onDemoted(deviceKey) }
 
     /** Every problem with a promotion, or null if it can be stored. */
     fun validate(device: PromotedDevice): PromotionResult.Invalid? {

@@ -23,6 +23,7 @@ class TransformHealthIndicator(private val service: TransformService) : HealthIn
             .withDetail("readings", stats.readings)
             .withDetail("messages", stats.messages)
             .withDetail("topics", stats.topics)
+            .withDetail("removed", stats.removed)
             .build()
     }
 }

@@ -517,6 +517,12 @@ curl -s localhost:5001/api/promoted-devices | jq        # what is approved
 curl -X DELETE localhost:5001/api/promoted-devices/rtl433/Acurite-Tower/A/3064
 ```
 
+Demoting a device also removes it from Home Assistant: an empty retained message
+goes to its discovery topic, which Home Assistant treats as deleting the device,
+and another to its state topic, so the broker stops keeping its last reading.
+Both go through publication, so a broker outage holds them like any other
+message. Promoting the device again recreates it with its next reading.
+
 The gate sends a reading one of three ways:
 
 | Device | Model | Goes to |
