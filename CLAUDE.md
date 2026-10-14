@@ -47,7 +47,7 @@ Integration actually builds; update its expected map when a stage is rewired.
 ./gradlew test           # tests only
 set -a; . ./.env; set +a  # the app needs the Mongo credentials; Compose reads .env, it does not
 ./gradlew bootRun        # app on :5001
-docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000, Explorer :8888
+docker compose -f docker/dev/compose.dev.yaml --env-file .env up -d   # InfluxDB :8181, MongoDB :27017, Grafana :3000, Explorer :8888
 ./scripts/bootstrap.sh   # first run: mints admin token, writes .env
 ```
 
@@ -67,6 +67,11 @@ docker compose up -d     # InfluxDB :8181, MongoDB :27017, Grafana :3000, Explor
   `PUBLISH_MQTT_URL`), not the ingest one, and is on by default. Spring tests set
   `pipeline.publish.enabled=false` so nothing reaches a broker; keep that in any
   new `@SpringBootTest`.
+- Docker content lives under `docker/`, one directory per usage (`dev`, `local`,
+  `prod`) with its own `compose.<usage>.yaml` and README; `docker/Dockerfile`
+  packages `build/libs/iot-pipeline.jar` from `./gradlew bootJar` and is shared.
+  The boot jar excludes `application-local.yml`, which holds development
+  credentials. Compose files run from the repo root with `--env-file .env`.
 - Startup fails if InfluxDB is unreachable, by design: the app creates its
   database with a retention period before anything is written. Set
   `pipeline.store.enabled=false` to run without it.

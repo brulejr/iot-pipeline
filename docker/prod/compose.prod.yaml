@@ -1,0 +1,100 @@
+# Production: the application and everything it depends on, on one Docker host. The
+# host is managed by Ansible, which checks out this repository, builds the jar and runs
+# this file; see docker/prod/README.md for what it must provide.
+#
+#   ./gradlew bootJar
+#   docker compose -f docker/prod/compose.prod.yaml --env-file <env file> up -d --build
+#
+# Self-contained rather than including docker/dev: production publishes fewer ports and
+# leaves out Explorer. Keep the shared services in step with docker/dev by hand.
+name: iot-pipeline
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    image: iot-pipeline:${APP_VERSION:-latest}
+    depends_on:
+      influxdb3:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      PROFILE: prod
+      # Full property names, which outrank anything in a profile file.
+      PIPELINE_INGEST_MQTT_URL: ${INGEST_MQTT_URL:?set INGEST_MQTT_URL, the broker rtl_433 publishes to}
+      PIPELINE_INGEST_MQTT_CLIENT_ID: ${INGEST_MQTT_CLIENT_ID:-iot-pipeline}
+      PIPELINE_PUBLISH_MQTT_URL: ${PUBLISH_MQTT_URL:?set PUBLISH_MQTT_URL, the broker Home Assistant listens on}
+      PIPELINE_PUBLISH_MQTT_CLIENT_ID: ${PUBLISH_MQTT_CLIENT_ID:-iot-pipeline-publisher}
+      PIPELINE_STORE_URL: http://influxdb3:8181
+      PIPELINE_STORE_TOKEN: ${INFLUXDB3_TOKEN:?set INFLUXDB3_TOKEN}
+      PIPELINE_STORE_DATABASE: ${INFLUXDB3_DATABASE:-sensors}
+      MONGO_HOST: mongodb
+      MONGO_PORT: "27017"
+      MONGO_USERNAME: ${MONGO_USERNAME:?set MONGO_USERNAME}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:?set MONGO_PASSWORD}
+      MONGO_DATABASE: ${MONGO_DATABASE:?set MONGO_DATABASE}
+    ports:
+      - "${APP_PORT:-5001}:5001"
+    restart: unless-stopped
+
+  influxdb3:
+    image: influxdb:3.12-core
+    command:
+      - influxdb3
+      - serve
+      - --node-id=${INFLUXDB3_NODE_ID:-node0}
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3/data
+      - --admin-token-file=/etc/influxdb3/admin-token.json
+      - --disable-authz=health,ping
+    ports:
+      # Loopback only: the application and Grafana reach it over the compose network.
+      - "127.0.0.1:${INFLUXDB3_PORT:-8181}:8181"
+    volumes:
+      - influxdb3-data:/var/lib/influxdb3
+      - ${INFLUXDB3_ADMIN_TOKEN_FILE:-../influxdb3/secrets/admin-token.json}:/etc/influxdb3/admin-token.json:ro,z
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:8.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:?set MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?set MONGO_PASSWORD}
+    # Not published: only the application talks to it.
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:13.0.2
+    depends_on:
+      influxdb3:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      INFLUXDB3_TOKEN: ${INFLUXDB3_TOKEN:?set INFLUXDB3_TOKEN}
+      INFLUXDB3_DATABASE: ${INFLUXDB3_DATABASE:-sensors}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro,z
+    restart: unless-stopped
+
+volumes:
+  influxdb3-data:
+  mongodb-data:
+  grafana-data:

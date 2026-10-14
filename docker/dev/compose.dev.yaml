@@ -1,15 +1,10 @@
-# Local infrastructure for the IoT pipeline: InfluxDB 3 Core for sensor readings and
-# MongoDB for the model registry (both owned solely by the pipeline), with Grafana as an
-# external read-only consumer.
+# Development support services: InfluxDB 3 Core for sensor readings and MongoDB for the
+# registries (both owned solely by the pipeline), Grafana as an external read-only
+# consumer, and InfluxDB 3 Explorer. The application itself runs in the IDE; see
+# docker/local for running it here too. Usage is in docker/dev/README.md.
 #
-# First run:   ./scripts/bootstrap.sh   # creates the admin token and .env
-# Then:        docker compose up -d
-#
-# InfluxDB: http://localhost:8181   Grafana: http://localhost:3000 (admin / see .env)
-# MongoDB:  localhost:27017 (credentials in .env)
-# InfluxDB 3 Explorer: http://localhost:8888 (a query UI, already connected to InfluxDB)
-# Host ports can be changed with INFLUXDB3_PORT, GRAFANA_PORT, MONGO_PORT and
-# EXPLORER_PORT in .env.
+# Run from the repository root, which holds .env:
+#   docker compose -f docker/dev/compose.dev.yaml --env-file .env up -d
 name: iot-pipeline
 
 services:
@@ -29,7 +24,7 @@ services:
     volumes:
       - influxdb3-data:/var/lib/influxdb3
       # :z relabels the file for SELinux hosts (e.g. Fedora); harmless elsewhere.
-      - ./docker/influxdb3/secrets/admin-token.json:/etc/influxdb3/admin-token.json:ro,z
+      - ../influxdb3/secrets/admin-token.json:/etc/influxdb3/admin-token.json:ro,z
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8181/health"]
       interval: 10s
@@ -51,7 +46,7 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro,z
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro,z
     restart: unless-stopped
 
   # Holds the model registry: payload structures discovered from live traffic, plus the

@@ -49,3 +49,16 @@ kotlin {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// The container image copies this one jar, so it has a fixed name and no plain-jar
+// sibling to choose between.
+tasks.jar {
+    enabled = false
+}
+
+tasks.bootJar {
+    archiveFileName = "iot-pipeline.jar"
+    // Development settings, with their credentials, stay with the source tree. The IDE
+    // still reads the file from build/resources; only the deployable jar leaves it out.
+    exclude("application-local.yml")
+}

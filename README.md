@@ -43,8 +43,8 @@ Gradle itself does not need to be installed — use the bundled wrapper.
 # 1. Mint the InfluxDB admin token and write .env (first run only)
 ./scripts/bootstrap.sh
 
-# 2. Start InfluxDB 3 and Grafana
-docker compose up -d
+# 2. Start the support services: InfluxDB 3, MongoDB, Grafana, Explorer
+docker compose -f docker/dev/compose.dev.yaml --env-file .env up -d
 
 # 3. Run the application
 ./gradlew bootRun
@@ -68,6 +68,10 @@ set -a; . ./.env; set +a
 
 Without them startup fails naming the missing placeholder, rather than quietly
 connecting to whatever else is listening on 27017.
+
+That is development, with the application in the IDE. [`docker/`](docker/README.md)
+also covers running the application itself in a container — locally alongside
+these services, or in production — each with its own README.
 
 Grafana is provisioned with the InfluxDB datasource already wired up, and is
 treated as an external read-only consumer — the application has no Grafana
@@ -365,7 +369,7 @@ From the command line:
 
 ```bash
 set -a; . ./.env; set +a
-docker compose exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
+docker compose -f docker/dev/compose.dev.yaml --env-file .env exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
   "SELECT time, device_name, sensor, value, state FROM reading ORDER BY time DESC LIMIT 10"
 ```
 
