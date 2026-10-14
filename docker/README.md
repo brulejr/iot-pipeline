@@ -26,6 +26,10 @@ the wrong directory:
 docker compose -f docker/<usage>/compose.<usage>.yaml --env-file .env <command>
 ```
 
+For `dev`, `scripts/bootstrap.sh` sets `COMPOSE_FILE` in `.env`, so plain
+`docker compose up -d` from the repository root works too; see
+[`dev/README.md`](dev/README.md).
+
 `dev` and `local` share the project name `iot-pipeline` and so the same containers
 and volumes: `local` adds the application to the development stack rather than
 starting a second one.

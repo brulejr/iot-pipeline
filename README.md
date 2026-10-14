@@ -43,8 +43,9 @@ Gradle itself does not need to be installed — use the bundled wrapper.
 # 1. Mint the InfluxDB admin token and write .env (first run only)
 ./scripts/bootstrap.sh
 
-# 2. Start the support services: InfluxDB 3, MongoDB, Grafana, Explorer
-docker compose -f docker/dev/compose.dev.yaml --env-file .env up -d
+# 2. Start the support services: InfluxDB 3, MongoDB, Grafana, Explorer.
+#    bootstrap.sh set COMPOSE_FILE in .env, which points this at docker/dev.
+docker compose up -d
 
 # 3. Run the application
 ./gradlew bootRun
@@ -369,7 +370,7 @@ From the command line:
 
 ```bash
 set -a; . ./.env; set +a
-docker compose -f docker/dev/compose.dev.yaml --env-file .env exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
+docker compose exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
   "SELECT time, device_name, sensor, value, state FROM reading ORDER BY time DESC LIMIT 10"
 ```
 

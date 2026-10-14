@@ -12,6 +12,31 @@ for that.
 docker compose -f docker/dev/compose.dev.yaml --env-file .env up -d
 ```
 
+`--env-file .env` is needed because Compose otherwise looks for `.env` beside the
+compose file, in `docker/dev/`.
+
+### Shorter commands
+
+`scripts/bootstrap.sh` adds this line to `.env` (add it by hand to a `.env` made
+before it did):
+
+```
+COMPOSE_FILE=docker/dev/compose.dev.yaml
+```
+
+Compose reads `COMPOSE_FILE` from the `.env` in the directory it runs in and then
+takes the other variables from that same file, so from the repository root the
+plain commands work:
+
+```bash
+docker compose up -d
+docker compose ps
+docker compose logs -f influxdb3
+```
+
+The path is relative, so run them from the repository root. An explicit `-f`
+still wins, which is how [`local`](../local/README.md) is run.
+
 | Service | URL | Credentials |
 | --- | --- | --- |
 | InfluxDB 3 | http://localhost:8181 | `INFLUXDB3_TOKEN` in `.env` |

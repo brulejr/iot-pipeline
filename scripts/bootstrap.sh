@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Provisions local secrets into .env: an offline InfluxDB 3 admin token (loaded by the
 # server at startup via --admin-token-file), a Grafana admin password, and MongoDB
-# credentials. Safe to re-run: each secret is generated only if it is missing, so
+# credentials. It also points Docker Compose at the development compose file, so plain
+# `docker compose` commands work from the repository root. Safe to re-run: each secret is generated only if it is missing, so
 # running this after adding a new service fills in just the new keys.
 set -euo pipefail
 
@@ -24,6 +25,12 @@ ensure_env() {
     echo "  $key written"
   fi
 }
+
+echo "Docker Compose:"
+# Compose reads COMPOSE_FILE from the .env in the directory it runs in, and then takes
+# the other variables from that same file, so `docker compose up -d` from the
+# repository root starts the development services. An explicit -f overrides it.
+ensure_env COMPOSE_FILE docker/dev/compose.dev.yaml
 
 echo "InfluxDB:"
 if [[ -e "$TOKEN_FILE" ]]; then
