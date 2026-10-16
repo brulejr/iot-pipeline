@@ -47,6 +47,15 @@ still wins, which is how [`local`](../local/README.md) is run.
 Host ports can be moved with `INFLUXDB3_PORT`, `MONGO_PORT`, `GRAFANA_PORT` and
 `EXPLORER_PORT` in `.env`.
 
+Grafana is provisioned with the InfluxDB data source and a **Sensors** dashboard
+(folder *IoT Pipeline*): current values, temperature and humidity over time,
+battery state, and when each device was last heard. Both live in
+`docker/grafana/provisioning/`, shared with `prod`. The dashboard is read-only in
+Grafana; edit `dashboards/iot-pipeline/sensors.json` instead, and Grafana reloads
+it within 30 seconds. A new provisioning file needs a Grafana restart. InfluxDB 3
+Core refuses queries that span too many stored files, so time ranges beyond a few
+days may fail.
+
 Explorer runs in read-only `query` mode, since the application owns the database
 and its retention period; set `EXPLORER_MODE=admin` in `.env` for database and
 token management. It listens on loopback only because it holds the admin token

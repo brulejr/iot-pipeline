@@ -1,0 +1,14 @@
+apiVersion: 1
+
+# Dashboards kept as code beside this file. Edits made in Grafana are not saved
+# back: change the JSON here instead (Grafana picks it up within 30 seconds), or
+# save a copy in Grafana under a new name.
+providers:
+  - name: iot-pipeline
+    folder: IoT Pipeline
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/iot-pipeline
