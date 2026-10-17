@@ -12,7 +12,8 @@ All routing, classification, and retention logic lives here.
 
 ## Status
 
-Early scaffold. Ingestion works end to end; most of the pipeline does not yet.
+Stages 1 to 7 work end to end, from ingestion to publication for Home Assistant;
+alerting is not started.
 
 | Stage | State |
 | --- | --- |
@@ -32,7 +33,7 @@ covers the reasoning behind each stage.
 ## Requirements
 
 - JDK 21 (the Gradle toolchain will resolve one if it is not your default)
-- Docker with Compose, for InfluxDB and Grafana
+- Docker with Compose, for InfluxDB, MongoDB and Grafana
 - An MQTT broker, and an rtl_433 feed publishing to it
 
 Gradle itself does not need to be installed — use the bundled wrapper.
@@ -74,9 +75,10 @@ That is development, with the application in the IDE. [`docker/`](docker/README.
 also covers running the application itself in a container — locally alongside
 these services, or in production — each with its own README.
 
-Grafana is provisioned with the InfluxDB datasource already wired up, and is
-treated as an external read-only consumer — the application has no Grafana
-integration of its own.
+Grafana is provisioned with the InfluxDB datasource already wired up and a
+**Sensors** dashboard, and is treated as an external read-only consumer — the
+application has no Grafana integration of its own. See
+[Querying InfluxDB](#querying-influxdb).
 
 Actuator exposes `health`, `info`, `metrics`, and `integrationgraph` under
 `http://localhost:5001/mgmt`. Micrometer observations are enabled for every
@@ -141,7 +143,8 @@ pipeline.dedupe      : duplicate of device=baf1bfc9bc94 from rtl_433/<host>/even
 `pipeline.classify` is where to look for which models are flowing, and which
 still need sensor mappings.
 
-Drop `logging.level.pipeline` to INFO once the storage stage lands.
+`pipeline` is still at DEBUG by default, from before readings were stored; now
+that InfluxDB keeps them, set `logging.level.pipeline=INFO` for quieter logs.
 `pipeline.known` stays silent until a device is promoted — expected, not a
 fault.
 
@@ -160,7 +163,7 @@ that way; the script is safe to re-run and does nothing if the token already
 exists.
 
 Docker Compose reads `.env` from the project root to interpolate the variables
-below. The script writes the first three for you; write them yourself only if
+below. The script writes those marked *yes* for you; write them yourself only if
 you manage secrets some other way (a vault or password manager). Note that
 these reach Compose only — the application's own settings are under
 [Configuration](#configuration) below, and `./gradlew bootRun` does not read
@@ -168,12 +171,13 @@ these reach Compose only — the application's own settings are under
 
 | Variable | Written by the script | Purpose |
 | --- | --- | --- |
+| `COMPOSE_FILE` | yes (`docker/dev/compose.dev.yaml`) | Lets plain `docker compose` find the dev stack |
 | `INFLUXDB3_TOKEN` | yes | InfluxDB admin token; Grafana authenticates with it |
 | `INFLUXDB3_DATABASE` | yes (`sensors`) | Database the Grafana datasource queries |
 | `GRAFANA_ADMIN_PASSWORD` | yes (random) | Grafana `admin` password |
 | `MONGO_USERNAME` | yes (`pipeline`) | MongoDB user, created on first start |
 | `MONGO_PASSWORD` | yes (random) | MongoDB password |
-| `MONGO_DATABASE` | yes (`iotpipeline`) | Database holding the model registry |
+| `MONGO_DATABASE` | yes (`iotpipeline`) | Database holding models, approvals and sightings |
 | `INFLUXDB3_PORT` | no (defaults to `8181`) | Host port for InfluxDB |
 | `GRAFANA_PORT` | no (defaults to `3000`) | Host port for Grafana |
 | `MONGO_PORT` | no (defaults to `27017`) | Host port for MongoDB — set this if 27017 is already taken |
@@ -181,22 +185,41 @@ these reach Compose only — the application's own settings are under
 | `EXPLORER_PORT` | no (defaults to `8888`) | Host port for InfluxDB 3 Explorer |
 | `EXPLORER_MODE` | no (defaults to `query`) | `admin` adds database and token management to Explorer |
 
-Compose fails fast with a pointer to the bootstrap script if the first three
-are missing.
+Compose fails fast with a pointer to the bootstrap script if a secret it needs
+is missing. Running the application in a container needs broker addresses as
+well; see [`docker/local/README.md`](docker/local/README.md).
+
+Grafana applies `GRAFANA_ADMIN_PASSWORD` only when its data volume is first
+created; changing it later has no effect. To bring the stored password back in
+line with `.env`:
+
+```bash
+docker compose exec grafana grafana cli admin reset-admin-password "<password>"
+```
+
+Repeated failed logins lock the `admin` account for about five minutes, and
+during the lockout even the right password is refused.
 
 ## Configuration
 
-Every setting has a working default, so the application starts with no
-configuration at all. Override via environment variables:
+Every setting except the MongoDB credentials has a working default. Override via
+environment variables:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `PROFILE` | `local` | Spring profile; containers run `prod` |
 | `SERVER_PORT` | `5001` | HTTP port. Not 8080, which tends to collide locally. |
 | `MQTT_URL` | `tcp://localhost:1883` | Broker to subscribe to |
 | `MQTT_CLIENT_ID` | `iot-pipeline` | MQTT client identifier |
 | `MQTT_TOPIC` | `rtl_433/+/events` | Topic pattern carrying rtl_433 events |
 | `PIPELINE_INGEST_MQTT_USERNAME` | — | Broker username, if required |
 | `PIPELINE_INGEST_MQTT_PASSWORD` | — | Broker password, if required |
+| `MONGO_HOST`, `MONGO_PORT` | `localhost`, `27017` | MongoDB server |
+| `MONGO_USERNAME`, `MONGO_PASSWORD`, `MONGO_DATABASE` | — (required) | MongoDB credentials and database, from `.env` |
+| `INFLUXDB3_URL` | `http://localhost:8181` | InfluxDB server readings are stored in |
+| `INFLUXDB3_TOKEN` | — | InfluxDB token, from `.env` |
+| `INFLUXDB3_DATABASE` | `sensors` | InfluxDB database, created with a retention period on startup |
+| `STORE_ENABLED` | `true` | `false` runs without InfluxDB; readings are parsed but not stored |
 | `MODEL_REGISTRY` | `mongo` | Where models are kept: `mongo` or `memory` |
 | `PROMOTION_REGISTRY` | `mongo` | Where device approvals are kept: `mongo` or `memory` |
 | `SIGHTING_REGISTRY` | `mongo` | Where sightings of unpromoted devices are kept: `mongo` or `memory` |
@@ -362,9 +385,18 @@ anyone on the network. From another machine, use an SSH tunnel:
 ssh -L 8888:localhost:8888 <this host>
 ```
 
-**Grafana** at http://localhost:3000 is provisioned against the same database:
-*Explore* → *InfluxDB 3* → *Code* runs SQL and charts the result, which is where
-dashboards come from.
+**Grafana** at http://localhost:3000 is provisioned against the same database,
+with a **Sensors** dashboard under *Dashboards* → *IoT Pipeline*: current values,
+temperature and humidity over time, battery state, and when each device was last
+heard, filtered by area and device. It is kept as code in
+`docker/grafana/provisioning/dashboards/` and is read-only in Grafana; edit the
+JSON there, or save a copy under a new name. *Explore* → *InfluxDB 3* → *Code*
+runs ad hoc SQL.
+
+InfluxDB 3 Core refuses a query that would read too many stored files, failing
+with "Query would scan … Parquet files, exceeding the file limit". Ranges of a few
+days work; a week or more may not, unless the `influxdb3` service is started with
+a higher `--query-file-limit`.
 
 From the command line:
 
@@ -629,7 +661,7 @@ resource to keep the file outside the repository, or set
 
 A seed entry is refused at startup if it has no `category`, if its fingerprint is
 not the hash of its own structure, or if a mapping names a field that structure
-does not have. Both are
+does not have. All three are
 ways a hand-edited file would otherwise produce a model that looks curated but
 can never match a reading.
 

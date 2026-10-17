@@ -16,7 +16,7 @@ Shared by all three:
 | `Dockerfile` | The application image. It packages the jar Gradle built (`./gradlew bootJar`); it does not build it. |
 | `Dockerfile.dockerignore` | Keeps everything but that jar out of the build context, which is the repository root. |
 | `influxdb3/secrets/` | The InfluxDB admin token, written by `scripts/bootstrap.sh`. Gitignored. |
-| `grafana/provisioning/` | Grafana's InfluxDB datasource, already wired to the readings database. |
+| `grafana/provisioning/` | Grafana's InfluxDB datasource, already wired to the readings database, and the **Sensors** dashboard. |
 
 Every compose file is run from the repository root and names the env file
 explicitly. Compose looks for `.env` next to the compose file, which here would be

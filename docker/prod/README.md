@@ -60,6 +60,10 @@ profile file.
   from `model-seed.json` and `promotion-seed.json`, bundled in the jar. Export
   them from the running system before redeploying onto an empty store; see the
   main README.
+- **Grafana comes provisioned.** The InfluxDB datasource and the **Sensors**
+  dashboard load from `../grafana/provisioning/`, as in `dev`. Its admin password
+  is set from `GRAFANA_ADMIN_PASSWORD` only when the `grafana-data` volume is first
+  created.
 - **Explorer is not included.** Add it from `../dev/compose.dev.yaml` if wanted.
 - **Keep in step with `dev`.** The InfluxDB, MongoDB and Grafana definitions are
   repeated here rather than included, so production can publish fewer ports.
