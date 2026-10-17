@@ -80,4 +80,60 @@ class PromotionServiceTest {
 
         assertTrue(demoted.isEmpty())
     }
+
+    private val door = DeviceKey("rtl433", "DSC-Security/2256987")
+
+    @Test
+    fun `a bulk promotion stores every device`() {
+        val registry = InMemoryPromotionRegistry()
+
+        val result = PromotionService(registry).promoteAll(
+            listOf(device(), device(deviceKey = door, name = "Kitchen door")),
+        )
+
+        assertEquals(2, assertIs<BulkPromotionResult.Promoted>(result).promoted.size)
+        assertEquals("Kitchen door", registry.find(door)!!.name)
+    }
+
+    @Test
+    fun `a bulk promotion reports devices already promoted as updated`() {
+        val registry = InMemoryPromotionRegistry()
+        val service = PromotionService(registry)
+        service.promote(device())
+
+        val result = service.promoteAll(
+            listOf(device(name = "Renamed sensor"), device(deviceKey = door, name = "Kitchen door")),
+        )
+
+        val stored = assertIs<BulkPromotionResult.Promoted>(result)
+        assertEquals(listOf(door), stored.promoted.map { it.deviceKey })
+        assertEquals(listOf(key), stored.updated.map { it.deviceKey })
+        assertEquals("Renamed sensor", registry.find(key)!!.name)
+    }
+
+    @Test
+    fun `one invalid entry refuses the whole bulk promotion`() {
+        val registry = InMemoryPromotionRegistry()
+
+        val result = PromotionService(registry).promoteAll(
+            listOf(device(), device(deviceKey = door, name = " ", area = "")),
+        )
+
+        val rejected = assertIs<BulkPromotionResult.Invalid>(result)
+        assertEquals(listOf("[1].name", "[1].area"), rejected.problems.map { it.field })
+        assertEquals(0, registry.all().size)
+    }
+
+    @Test
+    fun `a device named twice refuses the bulk promotion`() {
+        val registry = InMemoryPromotionRegistry()
+
+        val result = PromotionService(registry).promoteAll(
+            listOf(device(), device(deviceKey = door), device(name = "Other name")),
+        )
+
+        val rejected = assertIs<BulkPromotionResult.Invalid>(result)
+        assertEquals(listOf(PromotionProblem("[2].deviceKey", "repeats entry [0]")), rejected.problems)
+        assertEquals(0, registry.all().size)
+    }
 }

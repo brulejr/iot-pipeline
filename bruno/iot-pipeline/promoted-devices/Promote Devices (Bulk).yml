@@ -1,0 +1,66 @@
+info:
+  name: Promote Devices (Bulk)
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{iot_pipeline_url}}/api/promoted-devices"
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "Acurite-Tower/A/3064"
+          },
+          "name": "Back garden sensor",
+          "type": "thermometer",
+          "area": "garden"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2256987"
+          },
+          "name": "Kitchen Sliding Door",
+          "type": "contact",
+          "area": "kitchen"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2258267"
+          },
+          "name": "Kitchen Sink Window",
+          "type": "contact",
+          "area": "kitchen"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2881949"
+          },
+          "name": "Kitchen Door",
+          "type": "contact",
+          "area": "kitchen"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2181534"
+          },
+          "name": "Office Window",
+          "type": "contact",
+          "area": "office"
+        }
+      ]
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

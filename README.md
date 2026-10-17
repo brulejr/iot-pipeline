@@ -95,7 +95,7 @@ Each feature also has an endpoint of its own:
 | `POST /api/fingerprints` | The hashes a payload would get, without processing it |
 | `GET /api/dedupe` | Readings passed and discarded as duplicates |
 | `GET /api/models`, `PUT /api/models/{fingerprint}/curation` | The model registry and curation |
-| `GET /api/promoted-devices`, `PUT`/`DELETE …/{source}/{deviceId}` | Device approvals |
+| `GET`/`POST /api/promoted-devices`, `PUT`/`DELETE …/{source}/{deviceId}` | Device approvals; `POST` promotes several at once |
 | `GET /api/recommendations` | Unpromoted devices, best candidate first |
 | `POST /api/models/{fingerprint}/parse` | What a payload would parse to under a model's curation |
 | `GET /api/store` | Readings and values written, and failed writes |
@@ -537,6 +537,28 @@ goes to its discovery topic, which Home Assistant treats as deleting the device,
 and another to its state topic, so the broker stops keeping its last reading.
 Both go through publication, so a broker outage holds them like any other
 message. Promoting the device again recreates it with its next reading.
+
+Several devices can be promoted in one call by posting them to the collection.
+Here each device's key is in the body, as `source` and `id`, so one call can span
+sources:
+
+```bash
+curl -X POST localhost:5001/api/promoted-devices \
+  -H 'Content-Type: application/json' \
+  -d '[{"deviceKey":{"source":"rtl433","id":"DSC-Security/2256987"},
+        "name":"Kitchen sliding door","type":"contact","area":"kitchen"},
+       {"deviceKey":{"source":"rtl433","id":"Acurite-Tower/A/3064"},
+        "name":"Back garden sensor","type":"thermometer","area":"garden"}]'
+```
+
+It is all or nothing: every entry is checked first, and if any is invalid, or
+names a device another entry already names, nothing is written and the `400` lists
+each problem by entry, e.g. `[1].name`. A device that is already promoted is not
+a problem: it is relabelled, as promoting it alone would. The response says which
+is which, as `{"promoted": [...], "updated": [...]}`: `promoted` for devices that
+were new, `updated` for those whose earlier promotion was replaced. Entries have
+the shape of `GET /api/promoted-devices` and `promotion-seed.json`, so either can
+be sent back as is.
 
 To relabel a device, promote it again with the new `name`, `type` or `area`.
 Its next reading sends Home Assistant updated discovery, and the change shows

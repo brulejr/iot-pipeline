@@ -45,6 +45,32 @@ class PromotionService(
     }
 
     /**
+     * Promotes several devices, all or none: every entry is checked before any is
+     * written, so one bad entry leaves the store untouched. A device named twice is
+     * refused, since the two entries would race to be the one kept. A device already
+     * promoted is not: its promotion is replaced, as [promote] does, and it is reported
+     * as updated rather than promoted.
+     *
+     * The writes themselves are not a transaction. If the store fails partway, the
+     * request can simply be repeated: promoting replaces, so a repeat is harmless.
+     */
+    fun promoteAll(devices: List<PromotedDevice>): BulkPromotionResult {
+        val firstIndex = mutableMapOf<DeviceKey, Int>()
+        val problems = buildList {
+            devices.forEachIndexed { index, device ->
+                validate(device)?.problems?.forEach { add(it.copy(field = "[$index].${it.field}")) }
+                firstIndex.putIfAbsent(device.deviceKey, index)?.let { first ->
+                    add(PromotionProblem("[$index].deviceKey", "repeats entry [$first]"))
+                }
+            }
+        }
+        if (problems.isNotEmpty()) return BulkPromotionResult.Invalid(problems)
+        val (updated, promoted) = devices.partition { registry.find(it.deviceKey) != null }
+        devices.forEach(registry::save)
+        return BulkPromotionResult.Promoted(promoted, updated)
+    }
+
+    /**
      * Withdraws a promotion. Returns true if the device had been promoted, in which case
      * [onDemoted] is told, so consumers can be told the device is gone.
      */
