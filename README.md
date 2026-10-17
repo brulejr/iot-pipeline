@@ -369,6 +369,11 @@ treats ON as *open*. Only the person curating the model knows which way round a
 field runs, so it is recorded here rather than guessed at publish time. It
 applies to `BINARY` mappings only.
 
+A model's contact is curated as `opening`, since one model fits doors and
+windows alike. The promoted device's `type` refines it for Home Assistant: a
+device of type `door`, `window` or `garage door` publishes that device class
+instead, with the same polarity. Any other type keeps `opening`.
+
 ### Querying InfluxDB
 
 **InfluxDB 3 Explorer** at http://localhost:8888 is InfluxData's own UI — a

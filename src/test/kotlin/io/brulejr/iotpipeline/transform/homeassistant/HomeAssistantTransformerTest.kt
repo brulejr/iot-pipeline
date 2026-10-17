@@ -45,9 +45,10 @@ class HomeAssistantTransformerTest {
             // Already inverted by the parser: a flat battery is trouble, so on.
             SensorValue.Binary(battery, true),
         ),
+        type: String = "thermometer",
     ) = ParsedReading(
         device = PromotedDevice(
-            DeviceKey("rtl433", "Acurite-Tower/A/3064"), "Back garden sensor", "thermometer", "garden", receivedAt,
+            DeviceKey("rtl433", "Acurite-Tower/A/3064"), "Back garden sensor", type, "garden", receivedAt,
         ),
         model = ModelRecord(
             fingerprint = "fp", source = "rtl433", name = "Acurite-Tower", structure = "{}",
@@ -133,6 +134,21 @@ class HomeAssistantTransformerTest {
         assertEquals("ON", component["payload_on"].asString())
         assertEquals("OFF", component["payload_off"].asString())
         assertNull(component["unit_of_measurement"])
+    }
+
+    @Test
+    fun `a contact takes its class from the device it guards`() {
+        val contact = SensorMapping("closed", SensorType.BINARY, "opening", "Contact", inverted = true)
+        fun classOn(type: String) = json(
+            transformer().transform(
+                reading(listOf(contact, battery), listOf(SensorValue.Binary(contact, false)), type),
+            ).first().payload,
+        )["components"]
+
+        assertEquals("door", classOn("door")["closed"]["device_class"].asString())
+        assertEquals("garage_door", classOn("garage door")["closed"]["device_class"].asString())
+        assertEquals("opening", classOn("contact")["closed"]["device_class"].asString())
+        assertEquals("battery", classOn("door")["battery_ok"]["device_class"].asString())
     }
 
     @Test

@@ -101,7 +101,7 @@ class HomeAssistantTransformer(
                     platform = "binary_sensor",
                     name = mapping.friendlyName ?: mapping.classname,
                     uniqueId = "${id}_$componentId",
-                    deviceClass = mapping.classname,
+                    deviceClass = homeAssistantBinaryClassFor(mapping.classname, reading.device.type),
                     valueTemplate = "{{ value_json.${mapping.name} }}",
                     payloadOn = ON,
                     payloadOff = OFF,
