@@ -16,7 +16,7 @@ http:
             "id": "DSC-Security/2321755"
           },
           "name": "Front Door",
-          "type": "contact",
+          "type": "door",
           "area": "foyer"
         },
         {
@@ -25,7 +25,7 @@ http:
             "id": "DSC-Security/3040669"
           },
           "name": "Garage Overhead Door",
-          "type": "contact",
+          "type": "garage door",
           "area": "garage"
         },
         {
@@ -34,7 +34,7 @@ http:
             "id": "DSC-Security/2330203"
           },
           "name": "Garage Window - Southeast",
-          "type": "contact",
+          "type": "window",
           "area": "garage"
         },
         {
@@ -43,8 +43,8 @@ http:
             "id": "DSC-Security/2321243"
           },
           "name": "Guest Room Window - East",
-          "type": "contact",
-          "area": "guest room"
+          "type": "window",
+          "area": "guest bedroom"
         },
         {
           "deviceKey": {
@@ -52,8 +52,8 @@ http:
             "id": "DSC-Security/2893213"
           },
           "name": "Guest Room Window - North",
-          "type": "contact",
-          "area": "guest room"
+          "type": "window",
+          "area": "guest bedroom"
         },
         {
           "deviceKey": {
@@ -61,7 +61,7 @@ http:
             "id": "DSC-Security/2256987"
           },
           "name": "Kitchen Sliding Door",
-          "type": "contact",
+          "type": "door",
           "area": "kitchen"
         },
         {
@@ -70,7 +70,7 @@ http:
             "id": "DSC-Security/2258267"
           },
           "name": "Kitchen Sink Window",
-          "type": "contact",
+          "type": "window",
           "area": "kitchen"
         },
         {
@@ -79,7 +79,7 @@ http:
             "id": "DSC-Security/2881949"
           },
           "name": "Kitchen Door",
-          "type": "contact",
+          "type": "door",
           "area": "kitchen"
         },
         {
@@ -89,7 +89,7 @@ http:
           },
           "name": "Lab Climate",
           "type": "thermometer",
-          "area": "garden"
+          "area": "lab"
         },
         {
           "deviceKey": {
@@ -97,7 +97,7 @@ http:
             "id": "DSC-Security/3062685"
           },
           "name": "Living Room Window - Northwest",
-          "type": "contact",
+          "type": "window",
           "area": "living room"
         },
         {
@@ -106,7 +106,7 @@ http:
             "id": "DSC-Security/2299227"
           },
           "name": "Master Bathroom Window",
-          "type": "contact",
+          "type": "window",
           "area": "master bath"
         },
         {
@@ -115,7 +115,7 @@ http:
             "id": "DSC-Security/2258011"
           },
           "name": "Master Bedroom Window - East",
-          "type": "contact",
+          "type": "window",
           "area": "master bedroom"
         },
         {
@@ -124,7 +124,7 @@ http:
             "id": "DSC-Security/2295899"
           },
           "name": "Master Bedroom Window - Southwest",
-          "type": "contact",
+          "type": "window",
           "area": "master bedroom"
         },
         {
@@ -133,7 +133,7 @@ http:
             "id": "DSC-Security/2181534"
           },
           "name": "Office Window",
-          "type": "contact",
+          "type": "window",
           "area": "office"
         }
       ]
