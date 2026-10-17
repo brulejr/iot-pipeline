@@ -13,11 +13,47 @@ http:
         {
           "deviceKey": {
             "source": "rtl433",
-            "id": "Acurite-Tower/A/3064"
+            "id": "DSC-Security/2321755"
           },
-          "name": "Back garden sensor",
-          "type": "thermometer",
-          "area": "garden"
+          "name": "Front Door",
+          "type": "contact",
+          "area": "foyer"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/3040669"
+          },
+          "name": "Garage Overhead Door",
+          "type": "contact",
+          "area": "garage"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2330203"
+          },
+          "name": "Garage Window - Southeast",
+          "type": "contact",
+          "area": "garage"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2321243"
+          },
+          "name": "Guest Room Window - East",
+          "type": "contact",
+          "area": "guest room"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2893213"
+          },
+          "name": "Guest Room Window - North",
+          "type": "contact",
+          "area": "guest room"
         },
         {
           "deviceKey": {
@@ -45,6 +81,51 @@ http:
           "name": "Kitchen Door",
           "type": "contact",
           "area": "kitchen"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "Acurite-Tower/A/3064"
+          },
+          "name": "Lab Climate",
+          "type": "thermometer",
+          "area": "garden"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/3062685"
+          },
+          "name": "Living Room Window - Northwest",
+          "type": "contact",
+          "area": "living room"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2299227"
+          },
+          "name": "Master Bathroom Window",
+          "type": "contact",
+          "area": "master bath"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2258011"
+          },
+          "name": "Master Bedroom Window - East",
+          "type": "contact",
+          "area": "master bedroom"
+        },
+        {
+          "deviceKey": {
+            "source": "rtl433",
+            "id": "DSC-Security/2295899"
+          },
+          "name": "Master Bedroom Window - Southwest",
+          "type": "contact",
+          "area": "master bedroom"
         },
         {
           "deviceKey": {
