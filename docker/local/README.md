@@ -31,8 +31,8 @@ development leaks in. Add to `.env`:
 | `PUBLISH_MQTT_CLIENT_ID` | no | Default `iot-pipeline-local-publisher` |
 | `APP_PORT` | no | Host port for the application, default 5001 |
 
-InfluxDB and MongoDB are wired over the compose network, with credentials from
-the values `scripts/bootstrap.sh` wrote. The brokers have no defaults on purpose:
+PostgreSQL is wired over the compose network, with the credentials
+`scripts/bootstrap.sh` wrote. The brokers have no defaults on purpose:
 a broker picked by mistake is how a test run reached a production Home
 Assistant. The client ids differ from production's so the two never knock each
 other off a shared broker.
@@ -46,9 +46,9 @@ placeholders in `application.yml` (`MQTT_URL`, `PUBLISH_MQTT_URL`) do not.
 - **Stop the copy running in the IDE first.** Two instances would store every
   reading twice and publish everything twice, and a demotion would reach only
   one of them.
-- **This shares the development stack.** Same project name, so the same InfluxDB
-  database and the same data volumes. The MongoDB here is the project's own
-  container; if you develop against a different MongoDB, its curation and
-  approvals are not here, and the seed files restore them instead.
+- **This shares the development stack.** Same project name, so the same
+  PostgreSQL database and the same data volumes. If you develop against a
+  different PostgreSQL, its curation and approvals are not here, and the seed
+  files restore them instead.
 - **`PUBLISH_MQTT_URL` decides what Home Assistant sees.** Point it at a test
   broker unless you mean to publish to the real one.

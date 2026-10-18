@@ -1,7 +1,7 @@
 {
   "uid": "iot-pipeline-sensors",
   "title": "Sensors",
-  "description": "Readings stored by iot-pipeline for promoted devices. InfluxDB 3 Core refuses queries that span too many files, so ranges beyond a few days may fail.",
+  "description": "Readings stored by iot-pipeline for promoted devices, from its PostgreSQL readings table.",
   "tags": [
     "iot-pipeline"
   ],
@@ -30,16 +30,16 @@
         "name": "area",
         "label": "Area",
         "datasource": {
-          "type": "influxdb",
-          "uid": "influxdb3"
+          "type": "grafana-postgresql-datasource",
+          "uid": "postgres"
         },
         "query": {
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT DISTINCT device_area FROM reading WHERE $__timeFilter(time) ORDER BY 1",
-          "query": "SELECT DISTINCT device_area FROM reading WHERE $__timeFilter(time) ORDER BY 1"
+          "rawSql": "SELECT DISTINCT device_area FROM readings WHERE $__timeFilter(time) ORDER BY 1",
+          "query": "SELECT DISTINCT device_area FROM readings WHERE $__timeFilter(time) ORDER BY 1"
         },
         "definition": "SELECT DISTINCT device_area FROM reading WHERE $__timeFilter(time) ORDER BY 1",
         "refresh": 2,
@@ -62,16 +62,16 @@
         "name": "device",
         "label": "Device",
         "datasource": {
-          "type": "influxdb",
-          "uid": "influxdb3"
+          "type": "grafana-postgresql-datasource",
+          "uid": "postgres"
         },
         "query": {
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT DISTINCT device_name FROM reading WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) ORDER BY 1",
-          "query": "SELECT DISTINCT device_name FROM reading WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) ORDER BY 1"
+          "rawSql": "SELECT DISTINCT device_name FROM readings WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) ORDER BY 1",
+          "query": "SELECT DISTINCT device_name FROM readings WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) ORDER BY 1"
         },
         "definition": "SELECT DISTINCT device_name FROM reading WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) ORDER BY 1",
         "refresh": 2,
@@ -109,13 +109,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT date_bin(INTERVAL '$__interval_ms milliseconds', time) AS time, device_name, avg(value) AS value FROM reading WHERE sensor = 'temperature' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), device_name, avg(value) AS value FROM readings WHERE sensor = 'temperature' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -155,8 +155,8 @@
       },
       "id": 1,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     },
     {
@@ -172,13 +172,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT date_bin(INTERVAL '$__interval_ms milliseconds', time) AS time, device_name, avg(value) AS value FROM reading WHERE sensor = 'humidity' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), device_name, avg(value) AS value FROM readings WHERE sensor = 'humidity' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -218,8 +218,8 @@
       },
       "id": 2,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     },
     {
@@ -235,13 +235,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT date_bin(INTERVAL '$__interval_ms milliseconds', time) AS time, device_name, max(CASE WHEN state THEN 1 ELSE 0 END) AS low FROM reading WHERE sensor = 'battery' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), device_name, max(CASE WHEN state THEN 1 ELSE 0 END) AS low FROM readings WHERE sensor = 'battery' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -297,8 +297,8 @@
       },
       "id": 3,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     },
     {
@@ -314,13 +314,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT date_bin(INTERVAL '$__interval_ms milliseconds', time) AS time, device_name, avg(value) AS value FROM reading WHERE sensor = 'temperature' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), device_name, avg(value) AS value FROM readings WHERE sensor = 'temperature' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -356,8 +356,8 @@
       },
       "id": 4,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     },
     {
@@ -373,13 +373,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT date_bin(INTERVAL '$__interval_ms milliseconds', time) AS time, device_name, avg(value) AS value FROM reading WHERE sensor = 'humidity' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), device_name, avg(value) AS value FROM readings WHERE sensor = 'humidity' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -415,8 +415,8 @@
       },
       "id": 5,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     },
     {
@@ -432,13 +432,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT date_bin(INTERVAL '$__interval_ms milliseconds', time) AS time, device_name, max(CASE WHEN state THEN 1 ELSE 0 END) AS low FROM reading WHERE sensor = 'battery' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), device_name, max(CASE WHEN state THEN 1 ELSE 0 END) AS low FROM readings WHERE sensor = 'battery' AND $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "description": "Low when the sensor reports its battery as weak. Gaps are periods with no readings.",
@@ -499,8 +499,8 @@
       },
       "id": 6,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     },
     {
@@ -517,13 +517,13 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb3"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
           },
           "editorMode": "code",
           "rawQuery": true,
           "format": "table",
-          "rawSql": "SELECT device_name AS \"Device\", device_area AS \"Area\", sensor AS \"Sensor\", max(time) AS \"Last reading\", count(*) AS \"Readings\" FROM reading WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2, 3 ORDER BY 4 DESC, 1, 3"
+          "rawSql": "SELECT device_name AS \"Device\", device_area AS \"Area\", sensor AS \"Sensor\", max(time) AS \"Last reading\", count(*) AS \"Readings\" FROM readings WHERE $__timeFilter(time) AND device_area IN (${area:sqlstring}) AND device_name IN (${device:sqlstring}) GROUP BY 1, 2, 3 ORDER BY 4 DESC, 1, 3"
         }
       ],
       "fieldConfig": {
@@ -577,8 +577,8 @@
       },
       "id": 7,
       "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb3"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
       }
     }
   ]

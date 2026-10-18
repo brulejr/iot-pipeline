@@ -38,8 +38,8 @@ class StoreServiceTest {
     )
 
     private fun failingStore() = object : ReadingStorePort {
-        override fun store(reading: ParsedReading) = throw IllegalStateException("InfluxDB unreachable")
-        override fun describe() = throw IllegalStateException("InfluxDB unreachable")
+        override fun store(reading: ParsedReading) = throw IllegalStateException("PostgreSQL unreachable")
+        override fun describe() = throw IllegalStateException("PostgreSQL unreachable")
     }
 
     @Test

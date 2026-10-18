@@ -8,19 +8,33 @@
  */
 package io.brulejr.iotpipeline.pipeline
 
+import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.channel.DirectChannel
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
 import org.springframework.messaging.MessageChannel
+import javax.sql.DataSource
 
 /**
- * Cross-cutting wiring shared by every stage: the channels that join them, and the log
- * of failures raised along the way.
+ * Cross-cutting wiring shared by every stage: the channels that join them, the log of
+ * failures raised along the way, and the PostgreSQL schema the registries and the store
+ * share.
  */
 @Configuration
 class PipelineConfig {
+
+    /**
+     * Connects nothing by being created: features that choose PostgreSQL call
+     * [DatabaseMigrator.migrate], and only then is the database reached.
+     */
+    @Bean
+    fun databaseMigrator(
+        dataSource: DataSource,
+        dataSourceProperties: DataSourceProperties,
+        datafill: DatabaseDatafill,
+    ) = DatabaseMigrator(dataSource, dataSourceProperties, datafill)
 
     @Bean(PipelineChannels.INGEST)
     fun ingestChannel(): MessageChannel = DirectChannel()

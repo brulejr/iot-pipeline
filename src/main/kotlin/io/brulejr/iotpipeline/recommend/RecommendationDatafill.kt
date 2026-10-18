@@ -43,7 +43,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  */
 @ConfigurationProperties("pipeline.recommendation")
 data class RecommendationDatafill(
-    val registry: RegistryType = RegistryType.MONGO,
+    val registry: RegistryType = RegistryType.POSTGRES,
     val enabled: Boolean = true,
     val windowHours: Int = 24,
     val minHoursHeard: Int = 3,

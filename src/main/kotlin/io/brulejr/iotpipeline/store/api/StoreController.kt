@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * What has been stored since startup. Readings themselves are queried from InfluxDB, by
- * Grafana or Explorer, not through this application.
+ * What has been stored since startup. Readings themselves are queried from PostgreSQL,
+ * by Grafana or psql, not through this application.
  */
 @RestController
 @RequestMapping("/api/store")

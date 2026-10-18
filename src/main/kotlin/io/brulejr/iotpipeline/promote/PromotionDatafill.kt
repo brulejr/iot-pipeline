@@ -17,7 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  */
 @ConfigurationProperties("pipeline.promotion")
 data class PromotionDatafill(
-    val registry: RegistryType = RegistryType.MONGO,
+    val registry: RegistryType = RegistryType.POSTGRES,
     val seed: Seed = Seed(),
 ) {
     /**

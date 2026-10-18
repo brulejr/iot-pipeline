@@ -17,7 +17,7 @@ import java.time.Instant
  * @property pending messages held for retry, one per topic.
  * @property superseded held messages replaced by a newer one for the same topic before
  *   they could be delivered. Only the latest value matters to a consumer, and every
- *   reading is in InfluxDB regardless.
+ *   reading is in PostgreSQL regardless.
  * @property failures publish attempts that failed.
  * @property dropped messages discarded because publication is disabled.
  * @property circuitOpen true while the broker is failing: new messages are held rather

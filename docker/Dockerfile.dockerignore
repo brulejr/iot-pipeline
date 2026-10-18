@@ -1,4 +1,4 @@
-# The build context is the repository root, which holds .env, the InfluxDB admin token
-# and the sources. The image needs only the jar Gradle built.
+# The build context is the repository root, which holds .env and the sources. The image
+# needs only the jar Gradle built.
 *
 !build/libs/iot-pipeline.jar

@@ -4,11 +4,9 @@ kotlin = "2.3.21"
 spring-boot = "4.1.1"
 spring-dependency-management = "1.1.7"
 paho = "1.2.5"
-influxdb3 = "1.2.0"
 
 [libraries]
 paho-mqttv3 = { module = "org.eclipse.paho:org.eclipse.paho.client.mqttv3", version.ref = "paho" }
-influxdb3-java = { module = "com.influxdb:influxdb3-java", version.ref = "influxdb3" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

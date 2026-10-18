@@ -9,36 +9,23 @@
 package io.brulejr.iotpipeline.store
 
 import org.springframework.boot.context.properties.ConfigurationProperties
+import java.time.Duration
 
 /**
+ * Readings go to the `readings` table in PostgreSQL, over Spring Boot's
+ * `spring.datasource` connection, in the schema named by `pipeline.database.schema`.
+ *
  * @property enabled when false, readings are parsed and then dropped. Useful for
  *   watching the pipeline without writing anything.
- * @property url where InfluxDB 3 is listening.
- * @property token admin token; see `scripts/bootstrap.sh`.
- * @property database the database readings are written to. Owned solely by this
- *   application, as the design requires.
- * @property retention how long a reading is kept. Applied when this application creates
- *   the database; InfluxDB will not change it afterwards, so altering this value has no
- *   effect on a database that already exists.
- * @property measurement the table readings land in.
+ * @property retention how long a reading is kept. Read every time expired readings are
+ *   deleted, so a change applies from the next restart to everything already stored.
  */
 @ConfigurationProperties("pipeline.store")
 data class StoreDatafill(
     val enabled: Boolean = true,
-    val url: String = "http://localhost:8181",
-    val token: String = "",
-    val database: String = "sensors",
-    val retention: String = "30d",
-    val measurement: String = "reading",
+    val retention: Duration = Duration.ofDays(30),
 ) {
     init {
-        require(url.isNotBlank()) { "pipeline.store.url must not be blank" }
-        require(database.isNotBlank()) { "pipeline.store.database must not be blank" }
-        require(measurement.isNotBlank()) { "pipeline.store.measurement must not be blank" }
-        // Left blank, the database would be created with no retention period at all,
-        // which is what creating it here exists to prevent.
-        require(retention.isNotBlank()) { "pipeline.store.retention must not be blank" }
-        // The token is checked when the database is created, and only when storage is
-        // enabled, so a context with storage off needs none.
+        require(retention.isPositive) { "pipeline.store.retention must be positive" }
     }
 }

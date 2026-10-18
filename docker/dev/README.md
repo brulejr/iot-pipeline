@@ -5,7 +5,7 @@ application itself is not containerised here; see [`../local`](../local/README.m
 for that.
 
 ```bash
-# First run only: mint the InfluxDB admin token and write .env
+# First run only: generate the passwords and write .env
 ./scripts/bootstrap.sh
 
 # From the repository root
@@ -31,7 +31,7 @@ plain commands work:
 ```bash
 docker compose up -d
 docker compose ps
-docker compose logs -f influxdb3
+docker compose logs -f postgres
 ```
 
 The path is relative, so run them from the repository root. An explicit `-f`
@@ -39,34 +39,32 @@ still wins, which is how [`local`](../local/README.md) is run.
 
 | Service | URL | Credentials |
 | --- | --- | --- |
-| InfluxDB 3 | http://localhost:8181 | `INFLUXDB3_TOKEN` in `.env` |
-| MongoDB | localhost:27017 | `MONGO_USERNAME` / `MONGO_PASSWORD` in `.env` |
+| PostgreSQL | localhost:5432, database `POSTGRES_DB` | `POSTGRES_APP_USERNAME` / `POSTGRES_APP_PASSWORD` in `.env` |
 | Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` in `.env` |
-| InfluxDB 3 Explorer | http://localhost:8888 (loopback only) | none — already connected to InfluxDB |
 
-Host ports can be moved with `INFLUXDB3_PORT`, `MONGO_PORT`, `GRAFANA_PORT` and
-`EXPLORER_PORT` in `.env`.
+Host ports can be moved with `POSTGRES_PORT` and `GRAFANA_PORT` in `.env`.
 
-Grafana is provisioned with the InfluxDB data source and a **Sensors** dashboard
+PostgreSQL holds everything the application keeps, in the `iot_pipeline` schema:
+`models`, `promoted_devices`, `sightings` and `readings`. On the first start with
+an empty volume, [`../postgres/initdb`](../postgres/initdb/10-roles.sh) creates
+three roles: `postgres`, the superuser (`POSTGRES_ADMIN_PASSWORD`); the
+application's own role, which owns the schema; and `grafana_reader`, which can
+only read it. The tables are created by the application the first time it starts.
+To query them:
+
+```bash
+docker compose exec postgres psql -U postgres -d iot_pipeline -c '\dt iot_pipeline.*'
+```
+
+Grafana is provisioned with the PostgreSQL data source and a **Sensors** dashboard
 (folder *IoT Pipeline*): current values, temperature and humidity over time,
 battery state, and when each device was last heard. Both live in
 `docker/grafana/provisioning/`, shared with `prod`. The dashboard is read-only in
 Grafana; edit `dashboards/iot-pipeline/sensors.json` instead, and Grafana reloads
-it within 30 seconds. A new provisioning file needs a Grafana restart. InfluxDB 3
-Core refuses queries that span too many stored files, so time ranges beyond a few
-days may fail.
-
-Explorer runs in read-only `query` mode, since the application owns the database
-and its retention period; set `EXPLORER_MODE=admin` in `.env` for database and
-token management. It listens on loopback only because it holds the admin token
-and has no login of its own. From another machine, tunnel to it:
-
-```bash
-ssh -L 8888:localhost:8888 <this host>
-```
+it within 30 seconds. A new provisioning file needs a Grafana restart.
 
 The application run from the IDE reads its settings from
-`src/main/resources/application-local.yml` (gitignored) and needs the MongoDB
+`src/main/resources/application-local.yml` (gitignored) and needs the PostgreSQL
 credentials from `.env`. Compose reads `.env`; the application does not, unless
 `application-local.yml` imports it or they are exported first:
 

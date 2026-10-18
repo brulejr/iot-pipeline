@@ -15,8 +15,9 @@ build/
 # Local secrets
 .env
 .env.*
-docker/influxdb3/secrets/*
-!docker/influxdb3/secrets/.gitkeep
+# Left over from InfluxDB, which this project no longer uses; keeps an old admin token
+# out of version control until the directory is deleted.
+docker/influxdb3/
 
 # Claude Code: CLAUDE.md and .claude/ are committed deliberately, but
 # settings.local.json is per-developer and can hold tokens / MCP credentials.

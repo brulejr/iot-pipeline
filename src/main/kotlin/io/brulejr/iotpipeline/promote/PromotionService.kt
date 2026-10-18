@@ -51,8 +51,7 @@ class PromotionService(
      * promoted is not: its promotion is replaced, as [promote] does, and it is reported
      * as updated rather than promoted.
      *
-     * The writes themselves are not a transaction. If the store fails partway, the
-     * request can simply be repeated: promoting replaces, so a repeat is harmless.
+     * The writes go to the store together, which keeps them all or none too.
      */
     fun promoteAll(devices: List<PromotedDevice>): BulkPromotionResult {
         val firstIndex = mutableMapOf<DeviceKey, Int>()
@@ -66,7 +65,7 @@ class PromotionService(
         }
         if (problems.isNotEmpty()) return BulkPromotionResult.Invalid(problems)
         val (updated, promoted) = devices.partition { registry.find(it.deviceKey) != null }
-        devices.forEach(registry::save)
+        registry.saveAll(devices)
         return BulkPromotionResult.Promoted(promoted, updated)
     }
 

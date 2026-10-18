@@ -1,32 +1,37 @@
-# Development support services: InfluxDB 3 Core for sensor readings and MongoDB for the
-# registries (both owned solely by the pipeline), Grafana as an external read-only
-# consumer, and InfluxDB 3 Explorer. The application itself runs in the IDE; see
-# docker/local for running it here too. Usage is in docker/dev/README.md.
+# Development support services: PostgreSQL for the registries and the stored readings
+# (owned solely by the pipeline), and Grafana as an external read-only consumer. The
+# application itself runs in the IDE; see docker/local for running it here too. Usage is
+# in docker/dev/README.md.
 #
 # Run from the repository root, which holds .env:
 #   docker compose -f docker/dev/compose.dev.yaml --env-file .env up -d
 name: iot-pipeline
 
 services:
-  influxdb3:
-    image: influxdb:3.12-core
-    command:
-      - influxdb3
-      - serve
-      - --node-id=${INFLUXDB3_NODE_ID:-node0}
-      - --object-store=file
-      - --data-dir=/var/lib/influxdb3/data
-      - --admin-token-file=/etc/influxdb3/admin-token.json
-      # Let the healthcheck probe /health without a token; everything else requires auth.
-      - --disable-authz=health,ping
+  # Holds everything the application keeps: the model, promotion and sighting registries,
+  # and the stored readings, all in the iot_pipeline schema. The application's role owns
+  # that schema and creates its tables; Grafana reads them through a SELECT-only role.
+  # Both roles are created by docker/postgres/initdb on the first start with an empty
+  # volume, so changing their passwords in .env afterwards needs ALTER ROLE as well.
+  postgres:
+    image: postgres:17
+    environment:
+      # The instance's superuser, for administration only; the application has its own.
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?run scripts/bootstrap.sh first}
+      POSTGRES_DB: ${POSTGRES_DB:?run scripts/bootstrap.sh first}
+      POSTGRES_APP_USERNAME: ${POSTGRES_APP_USERNAME:?run scripts/bootstrap.sh first}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?run scripts/bootstrap.sh first}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD:?run scripts/bootstrap.sh first}
     ports:
-      - "${INFLUXDB3_PORT:-8181}:8181"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - influxdb3-data:/var/lib/influxdb3
-      # :z relabels the file for SELinux hosts (e.g. Fedora); harmless elsewhere.
-      - ../influxdb3/secrets/admin-token.json:/etc/influxdb3/admin-token.json:ro,z
+      - postgres-data:/var/lib/postgresql/data
+      # :z relabels the files for SELinux hosts (e.g. Fedora); harmless elsewhere.
+      - ../postgres/initdb:/docker-entrypoint-initdb.d:ro,z
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8181/health"]
+      # Over TCP, which the server only listens on once initialisation has finished; the
+      # socket answers earlier, while the init scripts are still running.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -35,13 +40,13 @@ services:
   grafana:
     image: grafana/grafana-oss:13.0.2
     depends_on:
-      influxdb3:
+      postgres:
         condition: service_healthy
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run scripts/bootstrap.sh first}
-      INFLUXDB3_TOKEN: ${INFLUXDB3_TOKEN:?run scripts/bootstrap.sh first}
-      INFLUXDB3_DATABASE: ${INFLUXDB3_DATABASE:-sensors}
+      POSTGRES_DB: ${POSTGRES_DB:?run scripts/bootstrap.sh first}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD:?run scripts/bootstrap.sh first}
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     volumes:
@@ -49,60 +54,6 @@ services:
       - ../grafana/provisioning:/etc/grafana/provisioning:ro,z
     restart: unless-stopped
 
-  # Holds the model registry: payload structures discovered from live traffic, plus the
-  # sensor mappings curated against them. Separate from InfluxDB, which stores readings.
-  mongodb:
-    image: mongo:8.0
-    environment:
-      # Setting a root username enables auth; the user is created in the admin database,
-      # which is why the application connects with authSource=admin.
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:?run scripts/bootstrap.sh first}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?run scripts/bootstrap.sh first}
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
-    volumes:
-      - mongodb-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-    restart: unless-stopped
-
-  # InfluxData's own UI for InfluxDB 3: schema browser and SQL editor. Arrives
-  # connected to the readings database, because Explorer creates the server described
-  # by the DEFAULT_* variables for each new browser session.
-  influxdb3-explorer:
-    image: influxdata/influxdb3-ui:1.9.0
-    depends_on:
-      influxdb3:
-        condition: service_healthy
-    environment:
-      # `query` is read-only: browse and query, but no creating or deleting databases
-      # or tokens. The application owns the database and its retention period, so that
-      # is the safer default; set EXPLORER_MODE=admin when you need the rest.
-      UI_MODE: ${EXPLORER_MODE:-query}
-      # Fixed rather than generated, so a restart does not sign every browser out.
-      SESSION_SECRET_KEY: ${EXPLORER_SESSION_SECRET:?run scripts/bootstrap.sh first}
-      DEFAULT_SERVER_NAME: iot-pipeline
-      # Explorer's backend makes the connection, so this is the compose-network name.
-      DEFAULT_INFLUX_SERVER: http://influxdb3:8181
-      DEFAULT_INFLUX_DATABASE: ${INFLUXDB3_DATABASE:-sensors}
-      DEFAULT_API_TOKEN: ${INFLUXDB3_TOKEN:?run scripts/bootstrap.sh first}
-    ports:
-      # Loopback only. Explorer has no login of its own but holds the admin token, so
-      # published on every interface it would hand the whole database to anyone on the
-      # network. Reach it from another machine through an SSH tunnel instead.
-      # The container listens on 8080; the host side is moved off it, since 8080 is
-      # taken by other local containers.
-      - "127.0.0.1:${EXPLORER_PORT:-8888}:8080"
-    volumes:
-      # Saved queries and sessions.
-      - influxdb3-explorer-data:/db
-    restart: unless-stopped
-
 volumes:
-  influxdb3-data:
+  postgres-data:
   grafana-data:
-  mongodb-data:
-  influxdb3-explorer-data:

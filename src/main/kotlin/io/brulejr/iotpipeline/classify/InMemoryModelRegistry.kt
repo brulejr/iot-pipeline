@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
  * with `pipeline.model-registry.type=memory`.
  *
  * The catalogue is rebuilt from traffic on restart and curated mappings do not survive
- * one, so nothing stays recognised. Use the MongoDB implementation to keep curation.
+ * one, so nothing stays recognised. Use the PostgreSQL implementation to keep curation.
  */
 class InMemoryModelRegistry : ModelRegistryPort {
 

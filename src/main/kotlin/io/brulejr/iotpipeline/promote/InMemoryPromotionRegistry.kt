@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
  * `pipeline.promotion-registry.type=memory`.
  *
  * Promotions do not survive a restart, so every device reverts to unpromoted. Use the
- * MongoDB implementation to keep them.
+ * PostgreSQL implementation to keep them.
  */
 class InMemoryPromotionRegistry : PromotionPort {
 
@@ -29,6 +29,9 @@ class InMemoryPromotionRegistry : PromotionPort {
     override fun save(device: PromotedDevice) {
         byKey[device.deviceKey] = device
     }
+
+    // Nothing here can fail partway, so a plain loop is all or none.
+    override fun saveAll(devices: List<PromotedDevice>) = devices.forEach(::save)
 
     override fun demote(deviceKey: DeviceKey): Boolean = byKey.remove(deviceKey) != null
 }

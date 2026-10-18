@@ -30,6 +30,12 @@ interface PromotionPort {
      */
     fun save(device: PromotedDevice)
 
+    /**
+     * Stores several promotions, each replacing any earlier one for its device, all or
+     * none: a store that fails partway leaves none of them written.
+     */
+    fun saveAll(devices: List<PromotedDevice>)
+
     /** Withdraws a promotion. Returns true if the device had been promoted. */
     fun demote(deviceKey: DeviceKey): Boolean
 }

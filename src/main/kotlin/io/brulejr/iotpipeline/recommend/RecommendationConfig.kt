@@ -12,16 +12,15 @@ import io.brulejr.iotpipeline.classify.Classification
 import io.brulejr.iotpipeline.classify.ClassificationService
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
 import io.brulejr.iotpipeline.pipeline.RegistryType
-import io.brulejr.iotpipeline.pipeline.requireResolvedMongoUri
+import io.brulejr.iotpipeline.pipeline.DatabaseMigrator
 import io.brulejr.iotpipeline.promote.PromotionService
-import io.brulejr.iotpipeline.recommend.mongo.MongoSightingRegistry
+import io.brulejr.iotpipeline.recommend.postgres.PostgresSightingRegistry
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.boot.mongodb.autoconfigure.MongoProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.data.mongodb.core.MongoOperations
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
+import org.springframework.jdbc.core.simple.JdbcClient
 import java.time.Clock
 
 /**
@@ -32,18 +31,18 @@ import java.time.Clock
 class RecommendationConfig {
 
     /**
-     * MongoDB is looked up only when chosen, so a context using the in-memory registry
+     * PostgreSQL is reached only when chosen, so a context using the in-memory registry
      * never touches it.
      */
     @Bean
     fun sightingRegistry(
         datafill: RecommendationDatafill,
-        mongo: ObjectProvider<MongoOperations>,
-        mongoProperties: ObjectProvider<MongoProperties>,
+        migrator: ObjectProvider<DatabaseMigrator>,
+        jdbc: ObjectProvider<JdbcClient>,
     ): SightingRegistryPort = when (datafill.registry) {
-        RegistryType.MONGO -> {
-            requireResolvedMongoUri(mongoProperties.getObject())
-            MongoSightingRegistry(mongo.getObject())
+        RegistryType.POSTGRES -> {
+            migrator.getObject().migrate()
+            PostgresSightingRegistry(jdbc.getObject(), Clock.systemUTC())
         }
         RegistryType.MEMORY -> InMemorySightingRegistry()
     }

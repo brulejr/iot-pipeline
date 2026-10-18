@@ -14,29 +14,30 @@ server:
 
 
 spring:
-  # The connection lives under spring.mongodb, not spring.data.mongodb: Spring Boot 4
-  # splits them, leaving only Spring Data concerns such as auto-index-creation under
-  # spring.data.mongodb. A uri placed under the wrong prefix is accepted as a property,
-  # bound to nothing, and the driver silently falls back to localhost:27017.
-  mongodb:
-    # Credentials are deliberately not defaulted. A default would build a valid-looking
-    # URI pointing at whatever listens on localhost:27017, which may be another database
-    # entirely; failing to start is the safer outcome. Export the variables from .env
-    # (`set -a; . ./.env; set +a`) or set spring.mongodb.uri in application-local.yml.
-    # The root user lives in the admin database, hence authSource.
-    uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST:localhost}:${MONGO_PORT:27017}/${MONGO_DATABASE}?authSource=admin
-  data:
-    mongodb:
-      # Off: annotation-driven index creation runs when the Mongo template is built, so
-      # it connects to MongoDB at startup even with every registry in memory. Registries
-      # that need an index create it themselves; see MongoSightingRegistry.
-      auto-index-creation: false
+  # PostgreSQL, holding the registries and the stored readings. Nothing connects until
+  # a feature that uses it starts; see DatabaseMigrator.
+  datasource:
+    # The database and credentials are deliberately not defaulted. A default would point
+    # at whatever listens on localhost:5432, which may be another database entirely;
+    # failing to start is the safer outcome. Export the variables from .env
+    # (`set -a; . ./.env; set +a`) or set spring.datasource.* in application-local.yml.
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB}
+    username: ${POSTGRES_APP_USERNAME}
+    password: ${POSTGRES_APP_PASSWORD}
+    hikari:
+      # Every connection works in the application's own schema, so its SQL names none.
+      schema: ${pipeline.database.schema}
   integration:
     management:
       # Micrometer observations for every channel and handler (observability per stage).
       observation-patterns: "*"
 
 pipeline:
+  # The PostgreSQL schema holding every table of this application, created by its first
+  # migration. Its own rather than `public`, so the database can later be shared.
+  database:
+    schema: iot_pipeline
+
   ingest:
     mqtt:
       url: ${MQTT_URL:tcp://localhost:1883}
@@ -59,15 +60,11 @@ pipeline:
   parse:
     drop-incomplete: false
 
-  # Where parsed readings land. The application owns this database: it creates it with
-  # the retention period below, because a database InfluxDB creates implicitly on first
-  # write has no retention at all and would keep readings for ever. Retention is fixed at
-  # creation, so changing it here does not alter an existing database.
+  # Where parsed readings land: the `readings` table. PostgreSQL has no retention period
+  # of its own, so the application deletes readings older than this as it writes new
+  # ones; a change applies to everything already stored.
   store:
     enabled: ${STORE_ENABLED:true}
-    url: ${INFLUXDB3_URL:http://localhost:8181}
-    token: ${INFLUXDB3_TOKEN:}
-    database: ${INFLUXDB3_DATABASE:sensors}
     retention: 30d
 
   # Ranking of unpromoted devices; see RecommendationDatafill for how each is used.
@@ -75,7 +72,7 @@ pipeline:
   # `registry` holds the hourly sightings scored into recommendations; `memory` keeps
   # them for the lifetime of the process, which is what the tests use.
   recommendation:
-    registry: ${SIGHTING_REGISTRY:mongo}
+    registry: ${SIGHTING_REGISTRY:postgres}
     enabled: true
     window-hours: 24
     # Clock-hour buckets make 3 the smallest meaningful value: around for over an hour.
@@ -110,12 +107,12 @@ pipeline:
       initial-backoff: 1s
       max-backoff: 1m
 
-  # Promotion: devices approved to pass the gate. `mongo` keeps approvals across
+  # Promotion: devices approved to pass the gate. `postgres` keeps approvals across
   # restarts; `memory` holds them for the lifetime of the process, which is what the
   # tests use. Approvals are restored from the seed file at startup, which like the
   # model seed never overwrites what is already in the store.
   promotion:
-    registry: ${PROMOTION_REGISTRY:mongo}
+    registry: ${PROMOTION_REGISTRY:postgres}
     seed:
       enabled: true
       location: classpath:promotion-seed.json
@@ -124,7 +121,7 @@ pipeline:
   # restores curation at startup. `memory` keeps models for the lifetime of the process,
   # which is what the tests use. A seed never overwrites curation already in the store.
   classification:
-    registry: ${MODEL_REGISTRY:mongo}
+    registry: ${MODEL_REGISTRY:postgres}
     seed:
       enabled: true
       location: classpath:model-seed.json

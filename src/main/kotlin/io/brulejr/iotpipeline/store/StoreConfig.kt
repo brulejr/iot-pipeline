@@ -8,46 +8,43 @@
  */
 package io.brulejr.iotpipeline.store
 
-import com.influxdb.v3.client.InfluxDBClient
 import io.brulejr.iotpipeline.parse.ParsedReading
+import io.brulejr.iotpipeline.pipeline.DatabaseMigrator
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
-import io.brulejr.iotpipeline.store.influx.InfluxDatabaseInitializer
-import io.brulejr.iotpipeline.store.influx.InfluxReadingStore
+import io.brulejr.iotpipeline.store.postgres.PostgresReadingStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 
 /**
- * Stage 5: parsed readings are written to InfluxDB, the design's neutral handoff
+ * Stage 5: parsed readings are written to PostgreSQL, the design's neutral handoff
  * boundary. With `pipeline.store.enabled` false they are discarded instead, and nothing
- * here touches InfluxDB.
+ * here touches the database.
  */
 @Configuration
 class StoreConfig {
 
-    @Bean(destroyMethod = "close")
-    @ConditionalOnProperty("pipeline.store.enabled", havingValue = "true", matchIfMissing = true)
-    fun influxDBClient(datafill: StoreDatafill): InfluxDBClient =
-        InfluxDBClient.getInstance(datafill.url, datafill.token.toCharArray(), datafill.database)
-
-    @Bean
-    @ConditionalOnProperty("pipeline.store.enabled", havingValue = "true", matchIfMissing = true)
-    fun influxDatabaseInitializer(datafill: StoreDatafill) = InfluxDatabaseInitializer(datafill)
-
     /**
-     * Depends on the initializer so the database exists, with its retention period,
-     * before this bean can be used to write anything.
+     * Migrates the schema while the bean is created, so the table exists before the
+     * first reading arrives and startup fails if PostgreSQL cannot be reached.
      */
     @Bean
     @ConditionalOnProperty("pipeline.store.enabled", havingValue = "true", matchIfMissing = true)
-    fun influxReadingStore(
-        client: InfluxDBClient,
+    fun postgresReadingStore(
+        migrator: DatabaseMigrator,
+        jdbc: NamedParameterJdbcOperations,
+        transactionManager: PlatformTransactionManager,
         datafill: StoreDatafill,
-        @Suppress("UNUSED_PARAMETER") initializer: InfluxDatabaseInitializer,
-    ): ReadingStorePort = InfluxReadingStore(client, datafill)
+    ): ReadingStorePort {
+        migrator.migrate()
+        return PostgresReadingStore(jdbc, TransactionTemplate(transactionManager), datafill, Clock.systemUTC())
+    }
 
     @Bean
     @ConditionalOnProperty("pipeline.store.enabled", havingValue = "false")

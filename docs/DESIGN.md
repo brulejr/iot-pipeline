@@ -3,8 +3,8 @@
 Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
 and deduplicated, classification identifies device models by structural fingerprint,
 the promotion gate admits only approved devices, their readings are parsed, stored in
-InfluxDB, shaped for Home Assistant and published to its broker, and unpromoted devices
-are ranked for promotion; alerting (stage 8) is not started. Local InfluxDB 3 + Grafana run via Compose. An earlier
+PostgreSQL, shaped for Home Assistant and published to its broker, and unpromoted devices
+are ranked for promotion; alerting (stage 8) is not started. Local PostgreSQL + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
 ## Goal
@@ -15,8 +15,8 @@ Ingest sensor data (initially JSON from RTL-SDR via rtl_433 over MQTT), classify
 
 - Language / framework: Kotlin, Spring Boot, Spring Integration (idiomatic Kotlin DSL, coroutines where they help)
 - Ingestion transport: Spring Integration MQTT adapter (wraps Eclipse Paho). Prototype used a raw Hive-style MQTT client.
-- Storage: InfluxDB 3 Core (open source, MIT/Apache 2.0, single node). Chosen for schema-flexible tag/field model that suits heterogeneous sensor data. MongoDB alongside it for the model registry and, later, recommendations and promoted devices; readings and metadata have little in common and a time-series store is the wrong shape for a curated catalogue.
-- Dashboards: Grafana as an external consumer of InfluxDB. No app-specific Grafana integration. Dashboard-as-code provisioning is a possible later nicety.
+- Storage: PostgreSQL, for the readings and every registry alike; see Storage below. It replaced InfluxDB 3 Core (readings), which did not deploy on the target platform, and MongoDB (registries), so one database serves both. Dedicated to this application for now, in a schema of its own so it can move to a shared instance later.
+- Dashboards: Grafana as an external consumer of PostgreSQL, reading through a SELECT-only role. No app-specific Grafana integration. Dashboards are provisioned as code.
 - Deployment: Docker Compose; the database is owned solely by this application.
 - Edge hardware: Orange Pi Zero running rtl_433 with an RTL-SDR dongle. Kept dumb and lightweight: it only forwards decoded data to MQTT, with no routing or classification logic on it.
 
@@ -31,7 +31,7 @@ Ingest sensor data (initially JSON from RTL-SDR via rtl_433 over MQTT), classify
    - Known: continue to normal processing.
    - Unknown: go to the recommendation engine.
 4. **Recommendation engine.** Evaluates unknown devices by frequency and proximity to decide whether they are worth tracking. The antenna hears any 433 MHz device in range (neighbors, noise), so most are not of interest. Promotion to "known" is a manual review/approve step for now; more AI-driven promotion is a possible future direction.
-5. **Storage.** Known-device data lands in InfluxDB with a retention policy so data ages out automatically. Storage is the neutral handoff boundary; everything before it is consumer-agnostic.
+5. **Storage.** Known-device data lands in PostgreSQL with a retention period so data ages out automatically. Storage is the neutral handoff boundary; everything before it is consumer-agnostic.
 6. **Transformation.** Reshapes neutral stored data into the format a specific consumer needs (e.g. Home Assistant).
 7. **Publication / delivery.** Publishes the transformed data. Circuit-breaker-style retry handling so a failed publish does not force re-running the transformation. One stage; see Publication below.
 8. **Alerting (future).** Possible later stage for broadcasting particular high-priority event types. Out of immediate scope.
@@ -40,7 +40,7 @@ Observability is wanted at each stage.
 
 ## Open Questions
 
-- Retention window length and any downsampling policy in InfluxDB
+- Retention window length, and whether to downsample older readings rather than delete them
 
 ## Fingerprinting, Dedupe and Model Identification
 
@@ -80,12 +80,11 @@ Whether a *device* is known remains a separate question answered by promotion, a
 manual. Until stage 3 exists, every reading goes to the recommendation engine carrying
 its model.
 
-The registry lives in MongoDB behind `ModelRegistryPort`, chosen over a relational
-store because a model is naturally a document: an arbitrary payload structure plus a
-nested list of sensor mappings. It is separate from InfluxDB, which holds readings, and
-is expected to host the recommendation and promotion collections when those land.
-The structural fingerprint is the document id, so the store cannot hold two records for
-one structure. An in-memory implementation remains for tests.
+The registry lives in PostgreSQL behind `ModelRegistryPort`, in a `models` table keyed
+by the structural fingerprint, so the store cannot hold two records for one structure.
+A model is partly a document, an arbitrary payload structure plus a nested list of
+sensor mappings; the mappings are a `jsonb` column, since they are always read and
+replaced whole. An in-memory implementation remains for tests.
 
 ## Promotion
 
@@ -104,21 +103,35 @@ promoted without a person.
 
 ## Storage
 
-Settled: one point per value rather than per reading, so each sensor is its own series.
-A model gaining or losing a mapping does not reshape what is already stored, and a query
-for temperature need not know which models report it. Tags carry only what
-identifies a series and cannot be relabelled — the device key, the model and its
-category, and the sensor's class. The operator's name, type and area are fields
-(`device_name`, `device_type`, `device_area`), recording the labels a reading was taken
-under: as tags, relabelling a device split its history into a new series. Analog and binary values use separate fields because InfluxDB fixes a
-field's type on first write.
+Settled: PostgreSQL holds everything the application keeps, readings and registries, in
+one database. InfluxDB 3 Core held the readings and MongoDB the registries until
+InfluxDB would not deploy on the target platform; PostgreSQL replaced both, so there is
+one database to run and back up rather than two. It runs on every architecture in
+question, and Grafana reads it with its own built-in data source. At this scale, a few
+dozen devices and a month of readings, a plain table needs no time-series extension.
 
-The application creates its own database with the retention period, before anything is
-written. InfluxDB creates a database implicitly on first write and an implicit one has
-no retention, so leaving creation to the write would quietly keep readings for ever.
-Creation runs during bean initialisation rather than from an application runner: Spring
-Integration starts its endpoints after every singleton is initialised but before runners
-execute, and from a runner the first reading won the race.
+One row per value rather than per reading, so each sensor is its own series. A model
+gaining or losing a mapping does not reshape what is already stored, and a query for
+temperature need not know which models report it. The columns identifying a series are
+only what cannot be relabelled — the device key, the model and its category, the
+sensor's class and its payload field. The operator's name, type and area are stored
+alongside (`device_name`, `device_type`, `device_area`), recording the labels a reading
+was taken under, so relabelling a device does not rewrite its history. An analog value
+is in `value` and a binary one in `state`; every row has exactly one. The column names
+follow the InfluxDB measurement this replaced, so the dashboards carried over.
+
+The application owns its schema, `iot_pipeline`, and creates its tables with Flyway
+migrations. It connects as its own role, never the superuser, and Grafana as a role that
+can only read: the database is dedicated for now, but moving it to a shared instance
+means creating the same two roles and the schema there. Migrations run while the first
+feature using PostgreSQL is created, not through Spring Boot's auto-configuration, which
+would connect even in a context with every registry in memory; they still run before
+Spring Integration starts its endpoints, so the tables exist before the first reading.
+
+PostgreSQL has no retention period of its own, so the application deletes readings older
+than `pipeline.store.retention` as it writes new ones, at most once an hour, and
+sightings older than a week the same way. A change to the retention applies to
+everything already stored, which InfluxDB's fixed-at-creation period did not allow.
 
 ## Recommendation
 
@@ -186,7 +199,7 @@ A message that cannot be delivered is held in memory, and so is everything after
 until the broker is back, at most one per topic: a newer message for a topic replaces
 the held one and joins the back of the line. Holding is bounded by the number of
 devices however long the outage, and drops nothing a consumer needs, since it only
-wants the latest state and every reading is in InfluxDB. It does keep discovery, which
+wants the latest state and every reading is in PostgreSQL. It does keep discovery, which
 matters because the transformer sends a device's discovery only when it changes.
 
 While anything is held the circuit is open: new messages are held rather than tried,
@@ -201,4 +214,4 @@ say plainly whether the broker is answering.
 
 ## Next Steps
 
-- Cover the MongoDB registries with tests against a real database
+- Move the database to a shared PostgreSQL when a second application needs one

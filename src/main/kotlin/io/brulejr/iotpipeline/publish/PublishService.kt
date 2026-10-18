@@ -22,7 +22,7 @@ import java.time.Instant
  * broker is back, at most one per topic: a newer message for a topic replaces the one
  * held, and moves to the back of the line. That keeps what is held bounded by the
  * number of devices however long the outage, and loses nothing that matters, since a
- * consumer only wants the latest state and every reading is in InfluxDB. It also keeps
+ * consumer only wants the latest state and every reading is in PostgreSQL. It also keeps
  * discovery: the transformer sends a device's discovery once, so dropping it would
  * leave the device unknown to Home Assistant until its curation next changed.
  *

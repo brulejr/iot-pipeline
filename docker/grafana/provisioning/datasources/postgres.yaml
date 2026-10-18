@@ -1,0 +1,26 @@
+apiVersion: 1
+
+# The InfluxDB data source this one replaces. Removing its file does not remove a data
+# source Grafana already provisioned, so it is deleted here by name.
+deleteDatasources:
+  - name: InfluxDB 3
+    orgId: 1
+
+datasources:
+  - name: PostgreSQL
+    uid: postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    # SELECT-only, with the application's schema on its search path; see
+    # docker/postgres/initdb. Grafana's query editor runs whatever SQL a panel holds.
+    user: grafana_reader
+    isDefault: true
+    jsonData:
+      database: ${POSTGRES_DB}
+      # PostgreSQL is reached over the compose network without TLS.
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
+    secureJsonData:
+      password: ${POSTGRES_GRAFANA_PASSWORD}

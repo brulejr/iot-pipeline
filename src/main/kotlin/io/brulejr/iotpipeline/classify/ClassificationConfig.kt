@@ -8,20 +8,19 @@
  */
 package io.brulejr.iotpipeline.classify
 
-import io.brulejr.iotpipeline.classify.mongo.MongoModelRegistry
+import io.brulejr.iotpipeline.classify.postgres.PostgresModelRegistry
 import io.brulejr.iotpipeline.classify.seed.ModelSeeder
 import io.brulejr.iotpipeline.fingerprint.FingerprintedReading
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
 import io.brulejr.iotpipeline.pipeline.RegistryType
-import io.brulejr.iotpipeline.pipeline.requireResolvedMongoUri
+import io.brulejr.iotpipeline.pipeline.DatabaseMigrator
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.ApplicationRunner
-import org.springframework.boot.mongodb.autoconfigure.MongoProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.io.ResourceLoader
-import org.springframework.data.mongodb.core.MongoOperations
 import org.springframework.integration.dsl.integrationFlow
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.integration.handler.LoggingHandler
 import tools.jackson.databind.json.JsonMapper
 
@@ -33,18 +32,19 @@ import tools.jackson.databind.json.JsonMapper
 class ClassificationConfig {
 
     /**
-     * MongoDB is looked up only when chosen, so a context using the in-memory registry
+     * PostgreSQL is reached only when chosen, so a context using the in-memory registry
      * never touches it.
      */
     @Bean
     fun modelRegistry(
         datafill: ClassificationDatafill,
-        mongo: ObjectProvider<MongoOperations>,
-        mongoProperties: ObjectProvider<MongoProperties>,
+        migrator: ObjectProvider<DatabaseMigrator>,
+        jdbc: ObjectProvider<JdbcClient>,
+        jsonMapper: JsonMapper,
     ): ModelRegistryPort = when (datafill.registry) {
-        RegistryType.MONGO -> {
-            requireResolvedMongoUri(mongoProperties.getObject())
-            MongoModelRegistry(mongo.getObject())
+        RegistryType.POSTGRES -> {
+            migrator.getObject().migrate()
+            PostgresModelRegistry(jdbc.getObject(), jsonMapper)
         }
         RegistryType.MEMORY -> InMemoryModelRegistry()
     }

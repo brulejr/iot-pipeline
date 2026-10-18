@@ -21,7 +21,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-integration")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jackson")
     implementation("org.springframework.integration:spring-integration-mqtt")
@@ -30,13 +30,19 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     // Expiring cache for the dedupe window; version managed by Spring Boot.
     implementation("com.github.ben-manes.caffeine:caffeine")
-    // InfluxDB 3 client. Not in Spring Boot's BOM, so pinned here.
-    implementation(libs.influxdb3.java)
+    // Flyway without Spring Boot's auto-configuration, which would migrate at startup
+    // even with every registry in memory; DatabaseMigrator runs it only when needed.
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
+    runtimeOnly("org.postgresql:postgresql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.integration:spring-integration-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    // A throwaway PostgreSQL for the SQL-backed registries; skipped without Docker.
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

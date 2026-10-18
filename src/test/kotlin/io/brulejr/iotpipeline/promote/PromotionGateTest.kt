@@ -41,12 +41,12 @@ import kotlin.test.assertTrue
         "pipeline.classification.registry=memory",
         "pipeline.promotion.registry=memory",
         "pipeline.recommendation.registry=memory",
-        // Readings are parsed and then dropped, so no InfluxDB is needed.
+        // Readings are parsed and then dropped, so no database is needed.
         "pipeline.store.enabled=false",
         // Nothing is published, so no broker is needed or reached.
         "pipeline.publish.enabled=false",
-        // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
-        "spring.mongodb.uri=mongodb://127.0.0.1:1/unused",
+        // Nowhere: 5432 may be a real PostgreSQL, and nothing here should reach it.
+        "spring.datasource.url=jdbc:postgresql://127.0.0.1:1/unused",
     ],
 )
 class PromotionGateTest {

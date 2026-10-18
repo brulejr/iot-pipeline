@@ -17,7 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  */
 @ConfigurationProperties("pipeline.classification")
 data class ClassificationDatafill(
-    val registry: RegistryType = RegistryType.MONGO,
+    val registry: RegistryType = RegistryType.POSTGRES,
     val seed: Seed = Seed(),
 ) {
     /**

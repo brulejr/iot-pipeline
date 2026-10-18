@@ -11,21 +11,22 @@ package io.brulejr.iotpipeline.promote
 import io.brulejr.iotpipeline.classify.Classification
 import io.brulejr.iotpipeline.pipeline.PipelineChannels
 import io.brulejr.iotpipeline.pipeline.RegistryType
-import io.brulejr.iotpipeline.pipeline.requireResolvedMongoUri
-import io.brulejr.iotpipeline.promote.mongo.MongoPromotionRegistry
+import io.brulejr.iotpipeline.pipeline.DatabaseMigrator
+import io.brulejr.iotpipeline.promote.postgres.PostgresPromotionRegistry
 import io.brulejr.iotpipeline.promote.seed.PromotionSeeder
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.ApplicationRunner
-import org.springframework.boot.mongodb.autoconfigure.MongoProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.io.ResourceLoader
-import org.springframework.data.mongodb.core.MongoOperations
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.messaging.MessageChannel
 import org.springframework.messaging.support.MessageBuilder
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.json.JsonMapper
 
 /**
@@ -36,18 +37,19 @@ import tools.jackson.databind.json.JsonMapper
 class PromotionConfig {
 
     /**
-     * MongoDB is looked up only when chosen, so a context using the in-memory registry
+     * PostgreSQL is reached only when chosen, so a context using the in-memory registry
      * never touches it.
      */
     @Bean
     fun promotionRegistry(
         datafill: PromotionDatafill,
-        mongo: ObjectProvider<MongoOperations>,
-        mongoProperties: ObjectProvider<MongoProperties>,
+        migrator: ObjectProvider<DatabaseMigrator>,
+        jdbc: ObjectProvider<JdbcClient>,
+        transactionManager: ObjectProvider<PlatformTransactionManager>,
     ): PromotionPort = when (datafill.registry) {
-        RegistryType.MONGO -> {
-            requireResolvedMongoUri(mongoProperties.getObject())
-            MongoPromotionRegistry(mongo.getObject())
+        RegistryType.POSTGRES -> {
+            migrator.getObject().migrate()
+            PostgresPromotionRegistry(jdbc.getObject(), TransactionTemplate(transactionManager.getObject()))
         }
         RegistryType.MEMORY -> InMemoryPromotionRegistry()
     }

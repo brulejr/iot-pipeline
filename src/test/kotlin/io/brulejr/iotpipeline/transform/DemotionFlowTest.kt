@@ -27,17 +27,17 @@ import kotlin.test.assertTrue
 @SpringBootTest(
     properties = [
         "pipeline.ingest.mqtt.enabled=false",
-        // Keeps the context free of a database. The URI is still bound by Mongo's
-        // auto-configuration, but with an in-memory registry nothing ever connects.
+        // Keeps the context free of a database. The datasource is still configured, but
+        // with in-memory registries and storage off nothing ever connects.
         "pipeline.classification.registry=memory",
         "pipeline.promotion.registry=memory",
         "pipeline.recommendation.registry=memory",
-        // Readings are parsed and then dropped, so no InfluxDB is needed.
+        // Readings are parsed and then dropped, so no database is needed.
         "pipeline.store.enabled=false",
         // Nothing is published, so no broker is needed or reached.
         "pipeline.publish.enabled=false",
-        // Nowhere: 27017 may be a real MongoDB, and nothing here should reach it.
-        "spring.mongodb.uri=mongodb://127.0.0.1:1/unused",
+        // Nowhere: 5432 may be a real PostgreSQL, and nothing here should reach it.
+        "spring.datasource.url=jdbc:postgresql://127.0.0.1:1/unused",
     ],
 )
 class DemotionFlowTest {

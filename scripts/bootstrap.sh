@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# Provisions local secrets into .env: an offline InfluxDB 3 admin token (loaded by the
-# server at startup via --admin-token-file), a Grafana admin password, and MongoDB
-# credentials. It also points Docker Compose at the development compose file, so plain
-# `docker compose` commands work from the repository root. Safe to re-run: each secret is generated only if it is missing, so
-# running this after adding a new service fills in just the new keys.
+# Provisions local secrets into .env: a Grafana admin password and the PostgreSQL
+# passwords (the instance's superuser, the application's own role, and Grafana's
+# read-only role). It also points Docker Compose at the development compose file, so
+# plain `docker compose` commands work from the repository root. Safe to re-run: each
+# secret is generated only if it is missing, so running this after adding a new service
+# fills in just the new keys.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-
-SECRETS_DIR=docker/influxdb3/secrets
-TOKEN_FILE="$SECRETS_DIR/admin-token.json"
-INFLUX_IMAGE=influxdb:3.12-core
 
 touch .env
 chmod 600 .env
@@ -26,43 +23,28 @@ ensure_env() {
   fi
 }
 
+# Letters and digits only, so a password needs no quoting in a URL, in .env or in SQL.
+password() {
+  openssl rand -base64 24 | tr -d '/+=' | head -c 24
+}
+
 echo "Docker Compose:"
 # Compose reads COMPOSE_FILE from the .env in the directory it runs in, and then takes
 # the other variables from that same file, so `docker compose up -d` from the
 # repository root starts the development services. An explicit -f overrides it.
 ensure_env COMPOSE_FILE docker/dev/compose.dev.yaml
 
-echo "InfluxDB:"
-if [[ -e "$TOKEN_FILE" ]]; then
-  echo "  $TOKEN_FILE already exists, left alone"
-else
-  mkdir -p "$SECRETS_DIR"
-  # The container runs as uid 1500 and must be able to write the token file.
-  chmod 777 "$SECRETS_DIR"
-  output=$(docker run --rm -v "$PWD/$SECRETS_DIR:/out:z" "$INFLUX_IMAGE" \
-    influxdb3 create token --admin --offline --name admin --output-file /out/admin-token.json)
-  chmod 755 "$SECRETS_DIR"
-
-  token=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$output" | sed -n 's/^Token: //p')
-  if [[ -z "$token" ]]; then
-    echo "Could not read the generated token from influxdb3 output." >&2
-    exit 1
-  fi
-  ensure_env INFLUXDB3_TOKEN "$token"
-  echo "  admin token written to $TOKEN_FILE"
-fi
-ensure_env INFLUXDB3_DATABASE sensors
-
 echo "Grafana:"
 ensure_env GRAFANA_ADMIN_PASSWORD "$(openssl rand -base64 18)"
 
-echo "InfluxDB 3 Explorer:"
-ensure_env EXPLORER_SESSION_SECRET "$(openssl rand -hex 32)"
-
-echo "MongoDB:"
-ensure_env MONGO_USERNAME pipeline
-ensure_env MONGO_PASSWORD "$(openssl rand -base64 18 | tr -d '/+=')"
-ensure_env MONGO_DATABASE iotpipeline
+echo "PostgreSQL:"
+# The roles are created from these on the container's first start with an empty
+# volume; see docker/postgres/initdb. Changing them later needs ALTER ROLE too.
+ensure_env POSTGRES_DB iot_pipeline
+ensure_env POSTGRES_ADMIN_PASSWORD "$(password)"
+ensure_env POSTGRES_APP_USERNAME iot_pipeline
+ensure_env POSTGRES_APP_PASSWORD "$(password)"
+ensure_env POSTGRES_GRAFANA_PASSWORD "$(password)"
 
 echo
-echo "Secrets are in .env and $SECRETS_DIR; both are gitignored. Keep them out of version control."
+echo "Secrets are in .env, which is gitignored. Keep it out of version control."

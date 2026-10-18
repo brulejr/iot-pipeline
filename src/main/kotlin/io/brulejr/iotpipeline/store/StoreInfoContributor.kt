@@ -11,7 +11,7 @@ package io.brulejr.iotpipeline.store
 import org.springframework.boot.actuate.info.Info
 import org.springframework.boot.actuate.info.InfoContributor
 
-/** Where readings are stored and for how long. The token is deliberately left out. */
+/** Where readings are stored and for how long. */
 class StoreInfoContributor(private val datafill: StoreDatafill) : InfoContributor {
 
     override fun contribute(builder: Info.Builder) {
@@ -19,11 +19,8 @@ class StoreInfoContributor(private val datafill: StoreDatafill) : InfoContributo
             "store",
             mapOf(
                 "enabled" to datafill.enabled,
-                "url" to datafill.url,
-                "database" to datafill.database,
-                "measurement" to datafill.measurement,
-                // What the database is created with; see StoreDatafill.retention.
-                "retention" to datafill.retention,
+                "table" to "readings",
+                "retention" to datafill.retention.toString(),
             ),
         )
     }

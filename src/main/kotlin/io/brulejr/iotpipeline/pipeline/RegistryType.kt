@@ -15,8 +15,8 @@ package io.brulejr.iotpipeline.pipeline
  * picks an implementation, it does not switch a feature on or off.
  */
 enum class RegistryType {
-    /** Persisted in MongoDB, surviving a restart. */
-    MONGO,
+    /** Persisted in PostgreSQL, surviving a restart. */
+    POSTGRES,
 
     /** Held for the lifetime of the process; needs no database. What the tests use. */
     MEMORY,

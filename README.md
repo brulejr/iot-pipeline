@@ -4,7 +4,7 @@ A Kotlin / Spring Integration pipeline for 433 MHz sensor telemetry. An
 RTL-SDR dongle running [rtl_433](https://github.com/merbanan/rtl_433) on an
 edge host publishes decoded sensor events to MQTT; this application ingests
 them, classifies the device that sent each reading, stores data from known
-devices in InfluxDB 3, and reshapes it for downstream consumers such as Home
+devices in PostgreSQL, and reshapes it for downstream consumers such as Home
 Assistant.
 
 The edge host stays deliberately dumb — it only forwards decoded JSON to MQTT.
@@ -19,10 +19,10 @@ alerting is not started.
 | --- | --- |
 | 1. Ingestion (MQTT) | Working |
 | 1.5 Fingerprint & dedupe | Working — three hashes per reading; repeated deliveries of one transmission are dropped |
-| 2. Classification | Working — models identified by structural fingerprint, auto-registered in MongoDB, and recognised once sensor mappings are curated |
+| 2. Classification | Working — models identified by structural fingerprint, auto-registered in PostgreSQL, and recognised once sensor mappings are curated |
 | 3. Known/unknown branch | Working — a reading continues only if its device has been promoted |
 | 4. Recommendation engine | Working — ranks unpromoted devices by how persistently and how nearby they are heard |
-| 5. Storage (InfluxDB) | Working — parsed readings are written with a retention period |
+| 5. Storage (PostgreSQL) | Working — parsed readings are written, and deleted after a retention period |
 | 6. Transformation | Working — stored readings are shaped for Home Assistant's MQTT discovery |
 | 7. Publication | Working — published to the consumer's broker; failures are held, latest per topic, and retried |
 | 8. Alerting | Not started |
@@ -33,7 +33,7 @@ covers the reasoning behind each stage.
 ## Requirements
 
 - JDK 21 (the Gradle toolchain will resolve one if it is not your default)
-- Docker with Compose, for InfluxDB, MongoDB and Grafana
+- Docker with Compose, for PostgreSQL and Grafana
 - An MQTT broker, and an rtl_433 feed publishing to it
 
 Gradle itself does not need to be installed — use the bundled wrapper.
@@ -41,10 +41,10 @@ Gradle itself does not need to be installed — use the bundled wrapper.
 ## Getting started
 
 ```bash
-# 1. Mint the InfluxDB admin token and write .env (first run only)
+# 1. Generate the passwords and write .env (first run only)
 ./scripts/bootstrap.sh
 
-# 2. Start the support services: InfluxDB 3, MongoDB, Grafana, Explorer.
+# 2. Start the support services: PostgreSQL and Grafana.
 #    bootstrap.sh set COMPOSE_FILE in .env, which points this at docker/dev.
 docker compose up -d
 
@@ -55,12 +55,10 @@ docker compose up -d
 | Service | URL | Credentials |
 | --- | --- | --- |
 | Application | http://localhost:5001 | — |
-| InfluxDB 3 | http://localhost:8181 | `INFLUXDB3_TOKEN` in `.env` |
-| MongoDB | localhost:27017 | `MONGO_USERNAME` / `MONGO_PASSWORD` in `.env` |
+| PostgreSQL | localhost:5432, database `iot_pipeline` | `POSTGRES_APP_USERNAME` / `POSTGRES_APP_PASSWORD` in `.env` |
 | Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` in `.env` |
-| InfluxDB 3 Explorer | http://localhost:8888 | none — already connected to InfluxDB |
 
-The application needs the MongoDB credentials too, and `.env` is read only by
+The application needs the PostgreSQL credentials too, and `.env` is read only by
 Compose, so export them before running it:
 
 ```bash
@@ -69,16 +67,16 @@ set -a; . ./.env; set +a
 ```
 
 Without them startup fails naming the missing placeholder, rather than quietly
-connecting to whatever else is listening on 27017.
+connecting to whatever else is listening on 5432.
 
 That is development, with the application in the IDE. [`docker/`](docker/README.md)
 also covers running the application itself in a container — locally alongside
 these services, or in production — each with its own README.
 
-Grafana is provisioned with the InfluxDB datasource already wired up and a
+Grafana is provisioned with the PostgreSQL datasource already wired up and a
 **Sensors** dashboard, and is treated as an external read-only consumer — the
 application has no Grafana integration of its own. See
-[Querying InfluxDB](#querying-influxdb).
+[Querying the readings](#querying-the-readings).
 
 Actuator exposes `health`, `info`, `metrics`, and `integrationgraph` under
 `http://localhost:5001/mgmt`. Micrometer observations are enabled for every
@@ -87,7 +85,7 @@ observable.
 
 Every feature contributes to both `health` and `info`. Health reports whether
 the feature's backing store answers, with counts since startup: the MQTT
-connection is down once the broker is lost, and storage is down when InfluxDB
+connection is down once the broker is lost, and storage is down when PostgreSQL
 cannot be reached. Info shows each feature's settings, minus credentials.
 Each feature also has an endpoint of its own:
 
@@ -119,7 +117,7 @@ Each stage logs under a `pipeline.*` category, set to DEBUG by default:
 | `pipeline.unknown` | DEBUG | Readings whose device is not promoted, counted by the recommendation engine |
 | `pipeline.known` | INFO | Readings from a promoted device |
 | `pipeline.parse` | INFO | Values read out of a payload through its model's mappings; WARN for an incomplete reading dropped by `pipeline.parse.drop-incomplete` |
-| `pipeline.store` | DEBUG | Readings written to InfluxDB |
+| `pipeline.store` | DEBUG | Readings written to PostgreSQL |
 | `pipeline.transform` | DEBUG | Messages shaped for Home Assistant, with their topics |
 | `pipeline.publish` | DEBUG | Each message published; WARN when the broker fails, INFO when held messages are delivered |
 | `pipeline.errors` | WARN | Failures routed to the ingest error channel |
@@ -144,7 +142,7 @@ pipeline.dedupe      : duplicate of device=baf1bfc9bc94 from rtl_433/<host>/even
 still need sensor mappings.
 
 `pipeline` is still at DEBUG by default, from before readings were stored; now
-that InfluxDB keeps them, set `logging.level.pipeline=INFO` for quieter logs.
+that PostgreSQL keeps them, set `logging.level.pipeline=INFO` for quieter logs.
 `pipeline.known` stays silent until a device is promoted — expected, not a
 fault.
 
@@ -157,10 +155,8 @@ curl -s localhost:5001/mgmt/metrics/spring.integration.send
 
 ### Secrets
 
-`scripts/bootstrap.sh` generates `.env` and
-`docker/influxdb3/secrets/admin-token.json`. Both are gitignored and must stay
-that way; the script is safe to re-run and does nothing if the token already
-exists.
+`scripts/bootstrap.sh` generates `.env`, which is gitignored and must stay that
+way. The script is safe to re-run: it only adds what is missing.
 
 Docker Compose reads `.env` from the project root to interpolate the variables
 below. The script writes those marked *yes* for you; write them yourself only if
@@ -172,21 +168,20 @@ these reach Compose only — the application's own settings are under
 | Variable | Written by the script | Purpose |
 | --- | --- | --- |
 | `COMPOSE_FILE` | yes (`docker/dev/compose.dev.yaml`) | Lets plain `docker compose` find the dev stack |
-| `INFLUXDB3_TOKEN` | yes | InfluxDB admin token; Grafana authenticates with it |
-| `INFLUXDB3_DATABASE` | yes (`sensors`) | Database the Grafana datasource queries |
 | `GRAFANA_ADMIN_PASSWORD` | yes (random) | Grafana `admin` password |
-| `MONGO_USERNAME` | yes (`pipeline`) | MongoDB user, created on first start |
-| `MONGO_PASSWORD` | yes (random) | MongoDB password |
-| `MONGO_DATABASE` | yes (`iotpipeline`) | Database holding models, approvals and sightings |
-| `INFLUXDB3_PORT` | no (defaults to `8181`) | Host port for InfluxDB |
+| `POSTGRES_DB` | yes (`iot_pipeline`) | Database holding readings, models, approvals and sightings |
+| `POSTGRES_ADMIN_PASSWORD` | yes (random) | Password of `postgres`, the instance's superuser, for administration only |
+| `POSTGRES_APP_USERNAME` | yes (`iot_pipeline`) | The application's role, which owns the `iot_pipeline` schema |
+| `POSTGRES_APP_PASSWORD` | yes (random) | Its password |
+| `POSTGRES_GRAFANA_PASSWORD` | yes (random) | Password of `grafana_reader`, Grafana's read-only role |
+| `POSTGRES_PORT` | no (defaults to `5432`) | Host port for PostgreSQL — set this if 5432 is already taken |
 | `GRAFANA_PORT` | no (defaults to `3000`) | Host port for Grafana |
-| `MONGO_PORT` | no (defaults to `27017`) | Host port for MongoDB — set this if 27017 is already taken |
-| `EXPLORER_SESSION_SECRET` | yes (random) | Keeps Explorer sessions valid across restarts |
-| `EXPLORER_PORT` | no (defaults to `8888`) | Host port for InfluxDB 3 Explorer |
-| `EXPLORER_MODE` | no (defaults to `query`) | `admin` adds database and token management to Explorer |
 
 Compose fails fast with a pointer to the bootstrap script if a secret it needs
-is missing. Running the application in a container needs broker addresses as
+is missing. The PostgreSQL roles are created from these passwords on the
+container's first start with an empty volume
+([`docker/postgres/initdb`](docker/postgres/initdb/10-roles.sh)); changing one in
+`.env` later also needs `ALTER ROLE … PASSWORD` in the database. Running the application in a container needs broker addresses as
 well; see [`docker/local/README.md`](docker/local/README.md).
 
 Grafana applies `GRAFANA_ADMIN_PASSWORD` only when its data volume is first
@@ -202,7 +197,7 @@ during the lockout even the right password is refused.
 
 ## Configuration
 
-Every setting except the MongoDB credentials has a working default. Override via
+Every setting except the PostgreSQL database and credentials has a working default. Override via
 environment variables:
 
 | Variable | Default | Purpose |
@@ -214,15 +209,13 @@ environment variables:
 | `MQTT_TOPIC` | `rtl_433/+/events` | Topic pattern carrying rtl_433 events |
 | `PIPELINE_INGEST_MQTT_USERNAME` | — | Broker username, if required |
 | `PIPELINE_INGEST_MQTT_PASSWORD` | — | Broker password, if required |
-| `MONGO_HOST`, `MONGO_PORT` | `localhost`, `27017` | MongoDB server |
-| `MONGO_USERNAME`, `MONGO_PASSWORD`, `MONGO_DATABASE` | — (required) | MongoDB credentials and database, from `.env` |
-| `INFLUXDB3_URL` | `http://localhost:8181` | InfluxDB server readings are stored in |
-| `INFLUXDB3_TOKEN` | — | InfluxDB token, from `.env` |
-| `INFLUXDB3_DATABASE` | `sensors` | InfluxDB database, created with a retention period on startup |
-| `STORE_ENABLED` | `true` | `false` runs without InfluxDB; readings are parsed but not stored |
-| `MODEL_REGISTRY` | `mongo` | Where models are kept: `mongo` or `memory` |
-| `PROMOTION_REGISTRY` | `mongo` | Where device approvals are kept: `mongo` or `memory` |
-| `SIGHTING_REGISTRY` | `mongo` | Where sightings of unpromoted devices are kept: `mongo` or `memory` |
+| `POSTGRES_HOST`, `POSTGRES_PORT` | `localhost`, `5432` | PostgreSQL server |
+| `POSTGRES_DB` | — (required) | PostgreSQL database, from `.env` |
+| `POSTGRES_APP_USERNAME`, `POSTGRES_APP_PASSWORD` | — (required) | The application's PostgreSQL role, from `.env` |
+| `STORE_ENABLED` | `true` | `false` runs without storing readings; they are parsed but dropped |
+| `MODEL_REGISTRY` | `postgres` | Where models are kept: `postgres` or `memory` |
+| `PROMOTION_REGISTRY` | `postgres` | Where device approvals are kept: `postgres` or `memory` |
+| `SIGHTING_REGISTRY` | `postgres` | Where sightings of unpromoted devices are kept: `postgres` or `memory` |
 | `PUBLISH_MQTT_URL` | `tcp://localhost:1883` | Broker Home Assistant listens on, separate from the ingest one |
 | `PUBLISH_MQTT_CLIENT_ID` | `iot-pipeline-publisher` | MQTT client identifier for publishing; must differ from the ingest one |
 | `PIPELINE_PUBLISH_MQTT_USERNAME` | — | Publishing broker username, if required |
@@ -277,10 +270,10 @@ src/main/kotlin/io/brulejr/iotpipeline/
 ├── promote/          # Stage 3 — the promotion gate
 ├── recommend/        # Stage 4 — ranking unpromoted devices
 ├── parse/            # Stage 5 — values read through sensor mappings
-├── store/            #   InfluxDB storage
+├── store/            #   PostgreSQL storage
 ├── transform/        # Stage 6 — shaping for Home Assistant
 ├── publish/          # Stage 7 — delivery to the consumer's broker
-└── pipeline/         # Cross-cutting: channels, error log, registry choice
+└── pipeline/         # Cross-cutting: channels, error log, registry choice, schema migration
 ```
 
 Packages mirror pipeline stages. `pipeline/PipelineChannels.kt` holds the
@@ -291,7 +284,7 @@ so later stages never see transport details.
 Every feature package has the same shape: one `*Config` declaring its beans
 and flows, a validated `*Datafill` for its `pipeline.*` settings, a `*Service`
 holding its logic, a `*Controller`, a health indicator and an info
-contributor. Storage sits behind ports such as `ModelRegistryPort`, so MongoDB
+contributor. Storage sits behind ports such as `ModelRegistryPort`, so PostgreSQL
 and in-memory implementations swap without touching the flow wiring.
 
 ### Fingerprinting and model identification
@@ -318,7 +311,7 @@ how to read values out of its payload. Until then the model is registered but
 not recognised, and `pipeline.classify` says so. That curation is the only
 hand-maintained input to the stage.
 
-The registry is held in MongoDB behind `ModelRegistryPort`, so discovered
+The registry is held in PostgreSQL behind `ModelRegistryPort`, so discovered
 models and their curated mappings survive a restart. Set
 `pipeline.classification.registry=memory` to run without a database, which is what
 the tests do.
@@ -374,84 +367,64 @@ windows alike. The promoted device's `type` refines it for Home Assistant: a
 device of type `door`, `window` or `garage door` publishes that device class
 instead, with the same polarity. Any other type keeps `opening`.
 
-### Querying InfluxDB
+### Querying the readings
 
-**InfluxDB 3 Explorer** at http://localhost:8888 is InfluxData's own UI — a
-schema browser and SQL editor, much like MongoDB Compass. It arrives connected
-to the readings database; nothing to configure.
-
-It runs in read-only `query` mode, since the application owns the database and
-its retention period. Set `EXPLORER_MODE=admin` in `.env` for database and token
-management. It is published on localhost only: Explorer has no login but holds
-the admin token, so on every interface it would hand the whole database to
-anyone on the network. From another machine, use an SSH tunnel:
-
-```bash
-ssh -L 8888:localhost:8888 <this host>
-```
-
-**Grafana** at http://localhost:3000 is provisioned against the same database,
-with a **Sensors** dashboard under *Dashboards* → *IoT Pipeline*: current values,
+**Grafana** at http://localhost:3000 is provisioned against the database, with a
+**Sensors** dashboard under *Dashboards* → *IoT Pipeline*: current values,
 temperature and humidity over time, battery state, and when each device was last
 heard, filtered by area and device. It is kept as code in
 `docker/grafana/provisioning/dashboards/` and is read-only in Grafana; edit the
-JSON there, or save a copy under a new name. *Explore* → *InfluxDB 3* → *Code*
-runs ad hoc SQL.
-
-InfluxDB 3 Core refuses a query that would read too many stored files, failing
-with "Query would scan … Parquet files, exceeding the file limit". Ranges of a few
-days work; a week or more may not, unless the `influxdb3` service is started with
-a higher `--query-file-limit`.
+JSON there, or save a copy under a new name. *Explore* → *PostgreSQL* → *Code*
+runs ad hoc SQL. Grafana connects as `grafana_reader`, which can only read, so
+nothing typed there can change the data.
 
 From the command line:
 
 ```bash
-set -a; . ./.env; set +a
-docker compose exec influxdb3 influxdb3 query --database sensors --token "$INFLUXDB3_TOKEN" \
-  "SELECT time, device_name, sensor, value, state FROM reading ORDER BY time DESC LIMIT 10"
+docker compose exec postgres psql -U postgres -d iot_pipeline -c \
+  "SELECT time, device_name, sensor, value, state FROM iot_pipeline.readings ORDER BY time DESC LIMIT 10"
 ```
+
+Any PostgreSQL client works too: connect to localhost:5432 as
+`POSTGRES_APP_USERNAME`, or as `grafana_reader` to be sure of changing nothing.
 
 ### Stored readings
 
 A promoted device's readings are parsed through its model's mappings and written
-to InfluxDB, one point per value:
+to the `readings` table, one row per value:
 
 ```sql
 SELECT time, device_name, device_area, category, model, sensor, value, state
-FROM reading ORDER BY time DESC
+FROM readings ORDER BY time DESC
 ```
 
-| Tag | |
+| Identifies the series | |
 | --- | --- |
 | `source`, `device` | The device key, as the gate and classifier print it |
 | `model`, `category` | What kind of device it is, from the model |
 | `sensor` | The mapping's `classname` — `temperature`, `battery`, and so on |
+| `field` | The payload field it was read from, e.g. `temperature_C` |
 
-| Field | |
+| Recorded with it | |
 | --- | --- |
-| `value` / `state` | The reading: `value` for an analog one, `state` for a binary one |
+| `value` / `state` | The reading: `value` for an analog one, `state` for a binary one; never both |
 | `device_name`, `device_type`, `device_area` | What the device was to you when the reading was taken, from its promotion |
 
-Tags hold only what cannot be relabelled, so a device's history stays one series
-when you rename or move it: filter and group on `device`, and read the labels
-from the fields. `value` and `state` are separate because InfluxDB fixes a
-field's type on first write, so one field could not hold both.
+Filter and group on `device`, and read the labels from the `device_*` columns:
+renaming or moving a device does not rewrite its history, and its old rows keep
+the labels they were taken under. One row per value rather than per reading
+means each sensor is a series in its own right, so a model gaining or losing a
+mapping does not reshape what is already stored. The column names follow the
+InfluxDB measurement this table replaced.
 
-Readings written before 2026-10-14 carry the labels as tags named `name`,
-`type` and `area` instead; InfluxDB will not reuse a tag's name for a field,
-hence the `device_` prefix. Until those rows age out under the retention period,
-`COALESCE(device_name, name)` reads either. One point per value rather than
-per reading means each sensor is a series in its own right, so a model gaining
-or losing a mapping does not reshape what is already stored.
-
-The application creates the database itself, with
-`pipeline.store.retention` (30d by default). This matters: InfluxDB creates a
-database implicitly on the first write, and an implicitly created one has **no
-retention at all**, so leaving it to the first write would keep readings for
-ever. A retention period is fixed at creation, so changing the setting
-afterwards does not alter an existing database — the log says so when it finds
-one. Set `pipeline.store.enabled=false` to run the pipeline without writing
-anything; readings are still parsed and logged.
+Everything lives in the `iot_pipeline` schema (`pipeline.database.schema`),
+which the application owns and migrates itself with Flyway; the migrations are
+in `src/main/resources/db/migration`. PostgreSQL has no retention period of its
+own, so the application deletes readings older than `pipeline.store.retention`
+(30 days by default) as it writes new ones, at most once an hour. A change to the
+setting applies to everything stored, from the next restart. Set
+`pipeline.store.enabled=false` to run the pipeline without writing anything;
+readings are still parsed and logged.
 
 ### Recommendations
 
@@ -499,8 +472,8 @@ curl -X PUT localhost:5001/api/promoted-devices/rtl433/DSC-Security/2321243 \
   -d '{"name":"Front door","type":"contact","area":"hallway"}'
 ```
 
-Sightings are kept for a week, in MongoDB's `sightings` collection, and expire
-on their own. The thresholds are in `application.yml` under
+Sightings are kept for a week, in the `sightings` table, and the application
+deletes older ones as it records new ones. The thresholds are in `application.yml` under
 `pipeline.recommendation`; they were calibrated on few samples and are worth
 revisiting as more devices are seen.
 
@@ -538,7 +511,7 @@ Publication is on by default; set `pipeline.publish.enabled=false` to shape
 messages without sending them. When the broker cannot be reached, nothing is
 lost that matters: the failed message is held, and so is everything after it,
 one per topic — a newer state replaces the one waiting, since Home Assistant
-only wants the latest and every reading is in InfluxDB anyway. Held messages
+only wants the latest and every reading is in PostgreSQL anyway. Held messages
 are retried in arrival order after a backoff that doubles from
 `pipeline.publish.retry.initial-backoff` up to `max-backoff`, and health reports
 `publish` DOWN until they are delivered. `GET /api/publish/pending` shows what
@@ -616,7 +589,7 @@ The gate sends a reading one of three ways:
 | Promoted | Uncurated | `promotionGaps` — logged at WARN, since nobody said how to read it |
 | Not promoted | Either | `unknownDevice` — the recommendation engine |
 
-Approvals live in MongoDB alongside the model registry, and are restored at
+Approvals live in PostgreSQL alongside the model registry, and are restored at
 startup from `src/main/resources/promotion-seed.json` the same way curated
 mappings are. The file matches `GET /api/promoted-devices`, so a backup is an
 export:
