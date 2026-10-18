@@ -1,17 +1,16 @@
-# Local provisioning: the application in a container, alongside the development support
-# services it depends on. Usage is in docker/local/README.md.
+# Local provisioning: the application in a container, with every service it depends on
+# except the MQTT brokers, which run elsewhere. Usage is in docker/local/README.md.
 #
 # Run from the repository root, after building the jar:
 #   ./gradlew bootJar
 #   docker compose -f docker/local/compose.local.yaml --env-file .env up -d --build
 #
-# The support services come from docker/dev, under the same project name, so this adds
-# the application to the development stack rather than starting a second one. Stop the
-# copy running in the IDE first: two instances would store and publish everything twice.
+# Self-contained: PostgreSQL and Grafana are defined here rather than included from
+# docker/dev. The project name is the same as docker/dev's, so the two share their data
+# volumes and this replaces the development containers rather than running beside them.
+# Stop the copy running in the IDE first: two instances would store and publish
+# everything twice. Keep the shared services in step with docker/dev by hand.
 name: iot-pipeline
-
-include:
-  - ../dev/compose.dev.yaml
 
 services:
   app:
@@ -38,3 +37,48 @@ services:
     ports:
       - "${APP_PORT:-5001}:5001"
     restart: unless-stopped
+
+  # Everything the application keeps; see docker/dev/compose.dev.yaml for the roles
+  # docker/postgres/initdb creates on the first start with an empty volume.
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?run scripts/bootstrap.sh first}
+      POSTGRES_DB: ${POSTGRES_DB:?run scripts/bootstrap.sh first}
+      POSTGRES_APP_USERNAME: ${POSTGRES_APP_USERNAME:?run scripts/bootstrap.sh first}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?run scripts/bootstrap.sh first}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD:?run scripts/bootstrap.sh first}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # :z relabels the files for SELinux hosts (e.g. Fedora); harmless elsewhere.
+      - ../postgres/initdb:/docker-entrypoint-initdb.d:ro,z
+    healthcheck:
+      # Over TCP, which the server only listens on once initialisation has finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:13.0.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run scripts/bootstrap.sh first}
+      POSTGRES_DB: ${POSTGRES_DB:?run scripts/bootstrap.sh first}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD:?run scripts/bootstrap.sh first}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro,z
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  grafana-data:

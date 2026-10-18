@@ -6,7 +6,7 @@ of running it:
 | Directory | Use | What runs in Docker |
 | --- | --- | --- |
 | [`dev/`](dev/README.md) | Development in the IDE | The support services only: PostgreSQL and Grafana |
-| [`local/`](local/README.md) | Local provisioning | The application as well, alongside the `dev` services |
+| [`local/`](local/README.md) | Local provisioning | The application, PostgreSQL and Grafana: everything but the MQTT brokers |
 | [`prod/`](prod/README.md) | Production, deployed by Ansible | The application, PostgreSQL and Grafana |
 
 Shared by all three:
@@ -30,6 +30,6 @@ For `dev`, `scripts/bootstrap.sh` sets `COMPOSE_FILE` in `.env`, so plain
 `docker compose up -d` from the repository root works too; see
 [`dev/README.md`](dev/README.md).
 
-`dev` and `local` share the project name `iot-pipeline` and so the same containers
-and volumes: `local` adds the application to the development stack rather than
-starting a second one.
+Each compose file is self-contained. `dev` and `local` share the project name
+`iot-pipeline` and so the same volumes: `local` runs the development data with
+the application added, rather than starting a second copy.

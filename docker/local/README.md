@@ -1,8 +1,8 @@
 # Local provisioning
 
-The application in a container, together with everything it depends on: the
-[`dev`](../dev/README.md) services plus the image built from
-[`../Dockerfile`](../Dockerfile). Use it to run the whole system on this machine
+The application in a container, together with everything it depends on except
+the MQTT brokers: PostgreSQL and Grafana, defined in `compose.local.yaml` itself,
+plus the image built from [`../Dockerfile`](../Dockerfile). Use it to run the whole system on this machine
 the way production runs it.
 
 ```bash
@@ -14,8 +14,9 @@ the way production runs it.
 docker compose -f docker/local/compose.local.yaml --env-file .env up -d --build
 ```
 
-The application is at http://localhost:5001 (`APP_PORT` moves it); the other
-services are where [`dev`](../dev/README.md) puts them.
+The application is at http://localhost:5001 (`APP_PORT` moves it); PostgreSQL and
+Grafana are on the same ports as in [`dev`](../dev/README.md), and moved by the
+same variables.
 
 ## Settings
 
@@ -46,8 +47,11 @@ placeholders in `application.yml` (`MQTT_URL`, `PUBLISH_MQTT_URL`) do not.
 - **Stop the copy running in the IDE first.** Two instances would store every
   reading twice and publish everything twice, and a demotion would reach only
   one of them.
-- **This shares the development stack.** Same project name, so the same
-  PostgreSQL database and the same data volumes. If you develop against a
+- **This shares the development stack's data.** The services are defined here,
+  not included from `dev`, but the project name is the same, so the same
+  PostgreSQL and Grafana volumes, and starting one replaces the other's
+  containers. Keep the PostgreSQL and Grafana definitions in step with `dev` by
+  hand. If you develop against a
   different PostgreSQL, its curation and approvals are not here, and the seed
   files restore them instead.
 - **`PUBLISH_MQTT_URL` decides what Home Assistant sees.** Point it at a test
