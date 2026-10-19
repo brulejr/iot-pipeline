@@ -24,6 +24,9 @@ package io.brulejr.iotpipeline.pipeline
  *                       ├─> promotionGaps    (promoted, model uncurated: logged)
  *                       └─> unknownDevice ──> (recommendation engine)
  *
+ * classified is also wire-tapped into monitor, which feeds the live monitor every
+ * reading whatever the gate decides.
+ *
  * [demotion API] ──> demoted ──> (transform: withdraw) ──> outbound
  * ```
  *
@@ -46,4 +49,5 @@ object PipelineChannels {
     const val KNOWN_DEVICE = "knownDeviceChannel"
     const val UNKNOWN_DEVICE = "unknownDeviceChannel"
     const val INGEST_ERRORS = "ingestErrorChannel"
+    const val MONITOR = "monitorChannel"
 }

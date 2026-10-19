@@ -90,6 +90,8 @@ class ClassificationConfig {
                         classification.reason
             }
         }
+        // A copy of every reading for the live monitor, whatever the gate decides.
+        wireTap(PipelineChannels.MONITOR)
         // The promotion gate decides where this goes.
         channel(PipelineChannels.CLASSIFIED)
     }

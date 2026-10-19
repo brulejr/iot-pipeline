@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.store
 
+import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.parse.ParsedReading
 import java.time.Clock
 import java.time.Instant
@@ -46,6 +47,9 @@ class StoreService(
 
     /** What readings are written to. Throws when the store cannot be reached. */
     fun describe(): String = store.describe()
+
+    /** The latest values stored for [deviceKey], newest first, at most [limit] of them. */
+    fun recent(deviceKey: DeviceKey, limit: Int): List<StoredValue> = store.recent(deviceKey, limit)
 
     fun stats() = StoreStats(readings.get(), values.get(), failures.get(), lastStoredAt.get())
 }

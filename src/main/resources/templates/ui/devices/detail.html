@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title=${promotion != null ? promotion.name : key.id}, active='devices', content=~{::main})}">
+<body>
+<main class="console-content">
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a th:href="@{/ui/devices}">Devices</a></li>
+      <li class="breadcrumb-item active device-key" aria-current="page" th:text="${key.id}">id</li>
+    </ol>
+  </nav>
+  <div id="device-summary" th:hx-get="@{/ui/devices/view(source=${key.source}, id=${key.id})}"
+       hx-trigger="devicesChanged from:body" hx-select="#device-summary" hx-target="this" hx-swap="outerHTML" hx-disinherit="*">
+    <div class="page-header">
+      <div>
+        <h1>
+          <span th:text="${promotion != null} ? ${promotion.name} : ${key.id}">Device</span>
+          <span th:if="${promotion != null}" class="badge badge-soft fs-6 align-middle text-success-emphasis bg-success-subtle border-success-subtle">promoted</span>
+          <span th:if="${promotion == null}" class="badge badge-soft fs-6 align-middle text-body-secondary bg-body-tertiary border-secondary-subtle">not promoted</span>
+        </h1>
+        <p class="lead-text mb-0"><span class="device-key" th:text="${key.id}">id</span> · <span th:text="${key.source}">rtl433</span></p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-outline-secondary" th:href="@{/ui/monitor(source=${key.source}, id=${key.id})}">
+          <i class="bi bi-activity me-1"></i>Watch live</a>
+        <button type="button" class="btn" th:classappend="${promotion != null} ? 'btn-outline-primary' : 'btn-primary'"
+                hx-target="#modal-content" hx-swap="innerHTML"
+                th:hx-get="@{/ui/devices/form(source=${key.source}, id=${key.id})}">
+          <i class="bi me-1" th:classappend="${promotion != null} ? 'bi-pencil' : 'bi-shield-plus'"></i>
+          <span th:text="${promotion != null} ? 'Edit' : 'Promote'">Promote</span></button>
+        <button th:if="${promotion != null}" type="button" class="btn btn-outline-danger" hx-swap="none" data-confirm-label="Demote"
+                th:hx-delete="@{/ui/devices(source=${key.source}, id=${key.id})}"
+                th:hx-confirm="'Demote ' + ${promotion.name} + '? Its readings stop being stored, and it is removed from Home Assistant.'">
+          <i class="bi bi-shield-x me-1"></i>Demote</button>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-shield-check"></i>Promotion</div>
+          <div class="card-body">
+            <dl class="props" th:if="${promotion != null}">
+              <dt>Name</dt><dd th:text="${promotion.name}">name</dd>
+              <dt>Type</dt><dd th:text="${promotion.type}">type</dd>
+              <dt>Area</dt><dd th:text="${promotion.area}">area</dd>
+              <dt>Promoted</dt><dd><time th:datetime="${promotion.promotedAt}"></time></dd>
+            </dl>
+            <p th:if="${promotion == null}" class="text-body-secondary mb-0">Readings from this device stop at the gate:
+              nothing is parsed, stored or published until it is promoted.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-8">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-broadcast"></i>Last heard</div>
+          <div class="card-body" th:if="${heard != null}">
+            <dl class="props mb-3">
+              <dt>When</dt><dd><time data-format="relative" th:datetime="${heard.lastHeard}"></time>,
+                <span th:text="${heard.readings}">1</span> reading(s) since <time th:datetime="${heard.firstHeard}"></time></dd>
+              <dt>Model</dt><dd>
+                <a th:href="@{/ui/models/{fp}(fp=${heard.modelFingerprint})}" th:text="${heard.modelName ?: 'unnamed'}">model</a>
+                <span th:if="${deviceModel != null and deviceModel.recognised}" class="badge badge-soft text-success-emphasis bg-success-subtle border-success-subtle ms-1">curated</span>
+                <span th:if="${deviceModel != null and !deviceModel.recognised}" class="badge badge-soft text-warning-emphasis bg-warning-subtle border-warning-subtle ms-1">not curated</span>
+              </dd>
+              <dt>Signal</dt><dd class="mono" th:text="${heard.signal != null} ? ${#numbers.formatDecimal(heard.signal, 1, 1)} + ' dB SNR' : '—'">—</dd>
+            </dl>
+            <div class="feed-fields"><span th:each="p : ${payload}" class="field-chip"><span class="k" th:text="${p.first}">k</span><span class="v" th:text="${p.second}">v</span></span></div>
+          </div>
+          <th:block th:if="${heard == null}"><div th:replace="~{ui/layout :: empty('bi-broadcast', 'Not heard this past hour', 'Watch it live, then exercise the device, to see what it sends.')}"></div></th:block>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-thermometer-half"></i>Latest stored values</div>
+        <ul class="list-group list-group-flush" th:if="${!latest.isEmpty()}">
+          <li class="list-group-item d-flex align-items-center" th:each="v : ${latest}">
+            <div>
+              <div class="fw-semibold" th:text="${v.sensor}">temperature</div>
+              <div class="small text-body-secondary"><span class="mono" th:text="${v.field}">field</span> ·
+                <time data-format="relative" th:datetime="${v.time}"></time></div>
+            </div>
+            <span class="ms-auto fs-5 fw-semibold mono" th:if="${v.value != null}" th:text="${#numbers.formatDecimal(v.value, 1, 2)}">0</span>
+            <span class="ms-auto" th:if="${v.state != null}">
+              <span class="badge" th:classappend="${v.state} ? 'text-bg-warning' : 'text-bg-secondary'" th:text="${v.state} ? 'on' : 'off'">off</span></span>
+          </li>
+        </ul>
+        <th:block th:if="${latest.isEmpty()}"><div th:replace="~{ui/layout :: empty('bi-database', 'Nothing stored', 'Only a promoted device with a curated model has its readings stored.')}"></div></th:block>
+      </div>
+      <div class="card mt-4" th:if="${preview != null and !preview.isEmpty()}">
+        <div class="card-header"><i class="bi bi-eye"></i>Last reading, as its model reads it</div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between" th:each="v : ${preview}">
+            <span th:text="${v.mapping.friendlyName ?: v.mapping.classname}">class</span>
+            <span class="fw-semibold mono" th:text="${v.mapping.type.name() == 'ANALOG'} ? ${v.value} : (${v.on} ? 'on' : 'off')">v</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-clock-history"></i>Recent stored values
+          <span class="badge text-bg-secondary" th:text="${recent.size()}">0</span></div>
+        <div class="table-responsive" style="max-height: 32rem" th:if="${!recent.isEmpty()}">
+          <table class="table table-sm table-hover">
+            <thead class="sticky-top"><tr><th>Time</th><th>Sensor</th><th>Field</th><th class="text-end">Value</th></tr></thead>
+            <tbody>
+            <tr th:each="v : ${recent}">
+              <td><time th:datetime="${v.time}" data-format="time"></time></td>
+              <td th:text="${v.sensor}">sensor</td>
+              <td class="mono small" th:text="${v.field}">field</td>
+              <td class="text-end mono" th:text="${v.value != null} ? ${v.value} : (${v.state} ? 'on' : 'off')">v</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <th:block th:if="${recent.isEmpty()}"><div th:replace="~{ui/layout :: empty('bi-clock-history', 'No stored values', 'Values appear here as the device reports, once it is promoted and its model curated.')}"></div></th:block>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

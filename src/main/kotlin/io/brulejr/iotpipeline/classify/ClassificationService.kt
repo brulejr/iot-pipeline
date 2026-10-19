@@ -57,6 +57,19 @@ class ClassificationService(
     fun restore(model: ModelRecord): Boolean = registry.insertIfAbsent(model)
 
     /**
+     * Forgets a model and its curation; false if it was not known. A model still being
+     * heard registers itself again, uncurated, and one in the seed file is restored at
+     * the next startup.
+     */
+    fun delete(fingerprint: String): Boolean = registry.delete(fingerprint)
+
+    /**
+     * Each field of [model]'s structure, at any depth, with the type recorded for it:
+     * the fields a curation may map, and what each can be read as.
+     */
+    fun fieldTypes(model: ModelRecord): Map<String, String> = structureFieldTypes(model.structure)
+
+    /**
      * Records what a person decides about a model: its category and its sensor mappings.
      * Refused whole, writing nothing, if any part breaks [validate]'s rules.
      */
@@ -73,7 +86,8 @@ class ClassificationService(
      * Checks a curation against [model], writing nothing; null if it is acceptable.
      *
      * A category must say what the model is. Every mapping must name a field the model's
-     * structure has, of a type it can read, and only a binary mapping may be inverted.
+     * structure has, of a type it can read, and say what the reading is; only a binary
+     * mapping may be inverted.
      * Each rule closes a way for a model to report itself recognised while yielding
      * nothing when its payload is read. Every problem is reported, not just the first.
      */
@@ -97,6 +111,9 @@ class ClassificationService(
                                 "expected ${readableStructureTypes(sensor.type).joinToString(" or ")}",
                         ),
                     )
+                }
+                if (sensor.classname.isBlank()) {
+                    add(CurationProblem(sensor.name, "classname must say what the reading is, e.g. temperature"))
                 }
                 if (sensor.inverted && sensor.type != SensorType.BINARY) {
                     add(CurationProblem(sensor.name, "inverted applies only to a BINARY mapping"))

@@ -314,4 +314,49 @@ class ClassificationServiceTest {
         assertEquals(discovered, registry.find(discovered.fingerprint))
         assertNull(registry.find("unseen"))
     }
+
+    @Test
+    fun `a mapping that does not say what it reads is rejected`() {
+        val registry = InMemoryModelRegistry()
+        val discovered = registry.registerIfAbsent(reading(tower))
+
+        val result = registry.curate(
+            discovered.fingerprint,
+            "weather",
+            listOf(SensorMapping("temperature_C", SensorType.ANALOG, " ")),
+        )
+
+        val rejected = assertIs<CurationResult.Invalid>(result)
+        assertTrue(rejected.problems.single().reason.startsWith("classname"), rejected.problems.toString())
+    }
+
+    @Test
+    fun `a deleted model registers itself again, uncurated, from its next reading`() {
+        val registry = InMemoryModelRegistry()
+        val classifier = ClassificationService(registry, jsonMapper)
+        val reading = reading(tower)
+        val discovered = registry.registerIfAbsent(reading)
+        registry.curate(discovered.fingerprint, "weather", listOf(SensorMapping("temperature_C", SensorType.ANALOG, "temperature")))
+
+        assertTrue(classifier.delete(discovered.fingerprint))
+        assertNull(classifier.model(discovered.fingerprint))
+
+        assertIs<Classification.Unrecognised>(classifier.classify(reading))
+        assertEquals(ModelRecord.UNCATEGORISED, classifier.model(discovered.fingerprint)!!.category)
+    }
+
+    @Test
+    fun `field types cover every depth of the structure`() {
+        val registry = InMemoryModelRegistry()
+        val classifier = ClassificationService(registry, jsonMapper)
+        val nested = registry.registerIfAbsent(
+            reading("""{"model":"Probe","id":5,"channel":"A","inner":{"depth_cm":12.0}}"""),
+        )
+
+        val types = classifier.fieldTypes(nested)
+
+        assertEquals("number", types["depth_cm"])
+        assertEquals("object", types["inner"])
+        assertEquals("string", types["model"])
+    }
 }

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title='Dashboard', active='dashboard', content=~{::main})}">
+<body>
+<main class="console-content">
+  <div class="page-header">
+    <div>
+      <h1>Dashboard</h1>
+      <p class="lead-text">What the pipeline has done since it started, and what is waiting on you.</p>
+    </div>
+    <div class="actions">
+      <a th:href="@{/ui/monitor(scope='UNPROMOTED', changes=true)}" class="btn btn-primary">
+        <i class="bi bi-search-heart me-1"></i>Identify a device</a>
+    </div>
+  </div>
+
+  <div id="overview" th:fragment="overview" th:hx-get="@{/ui/overview}" th:attr="hx-trigger='every ' + ${refreshSeconds} + 's'"
+       hx-swap="outerHTML" hx-indicator="#global-indicator" hx-disinherit="*">
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="card kpi">
+          <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-broadcast"></i></span>Received</div>
+          <div class="kpi-value" th:text="${overview.ingest != null} ? ${#numbers.formatInteger(overview.ingest.received, 1, 'COMMA')} : '—'">0</div>
+          <div class="kpi-sub">
+            <th:block th:if="${overview.ingest == null}">MQTT ingestion off</th:block>
+            <th:block th:if="${overview.ingest != null}">
+              <span class="status-dot me-1"
+                    th:classappend="${overview.ingest.connected == null} ? '' : (${overview.ingest.connected} ? 'up' : 'down')"></span>
+              <span th:text="${overview.ingest.connected == null} ? 'connecting' : (${overview.ingest.connected} ? 'broker connected' : 'broker down')">connected</span>
+            </th:block>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="card kpi">
+          <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-funnel"></i></span>Unique</div>
+          <div class="kpi-value" th:text="${#numbers.formatInteger(overview.dedupe.unique, 1, 'COMMA')}">0</div>
+          <div class="kpi-sub"><span th:text="${#numbers.formatInteger(overview.dedupe.duplicates, 1, 'COMMA')}">0</span> duplicates dropped</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="card kpi">
+          <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-shield-check"></i></span>Promoted</div>
+          <div class="kpi-value" th:text="${#numbers.formatInteger(overview.promotion.promoted, 1, 'COMMA')}">0</div>
+          <div class="kpi-sub"><span th:text="${#numbers.formatInteger(overview.promotion.unpromoted, 1, 'COMMA')}">0</span> from unpromoted devices</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="card kpi">
+          <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-database"></i></span>Stored</div>
+          <div class="kpi-value" th:text="${#numbers.formatInteger(overview.store.values, 1, 'COMMA')}">0</div>
+          <div class="kpi-sub">
+            <th:block th:text="${#numbers.formatInteger(overview.store.readings, 1, 'COMMA')} + ' readings'">0 readings</th:block>
+            <span th:if="${overview.store.failures > 0}" class="text-danger" th:text="' · ' + ${overview.store.failures} + ' failed'"></span>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="card kpi">
+          <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-send"></i></span>Published</div>
+          <div class="kpi-value" th:text="${#numbers.formatInteger(overview.publish.published, 1, 'COMMA')}">0</div>
+          <div class="kpi-sub">
+            <span th:if="${overview.publish.circuitOpen}" class="text-danger"><span class="status-dot down me-1"></span>broker failing</span>
+            <span th:unless="${overview.publish.circuitOpen}" th:text="${overview.publish.pending} + ' held for retry'">0 held</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="card kpi">
+          <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-activity"></i></span>Heard</div>
+          <div class="kpi-value" th:text="${overview.monitor.heardDevices}">0</div>
+          <div class="kpi-sub">devices this past hour</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-lg-5 col-xxl-4">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-heart-pulse"></i>Pipeline health
+            <a th:href="@{/mgmt/health}" hx-boost="false" target="_blank" class="ms-auto small fw-normal">Details</a>
+          </div>
+          <ul class="list-group list-group-flush stage-list">
+            <li class="list-group-item" th:each="stage : ${overview.health}">
+              <span class="status-dot" th:classappend="${#strings.toLowerCase(stage.status)}"></span>
+              <span class="stage-name" th:text="${stage.stage == 'mqttIngestion'} ? 'MQTT ingestion' : ${stage.stage}">stage</span>
+              <span class="ms-auto small text-body-secondary text-truncate" style="max-width: 60%"
+                    th:with="error=${stage.details['error']}"
+                    th:text="${error != null} ? ${error} : ${stage.status}">UP</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="col-lg-7 col-xxl-8">
+        <div class="row g-4 h-100">
+          <div class="col-md-4">
+            <a th:href="@{/ui/models}" class="card kpi text-decoration-none h-100">
+              <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-diagram-3"></i></span>Models curated</div>
+              <div class="kpi-value"><span th:text="${overview.curatedModels}">0</span><span class="fs-5 text-body-secondary" th:text="' / ' + ${overview.models}"> / 0</span></div>
+              <div class="progress mt-2" role="progressbar" style="height: .4rem"
+                   th:with="pct=${overview.models == 0 ? 0 : overview.curatedModels * 100 / overview.models}">
+                <div class="progress-bar" th:style="'width:' + ${pct} + '%'"></div>
+              </div>
+              <div class="kpi-sub mt-2">Only curated models can be read</div>
+            </a>
+          </div>
+          <div class="col-md-4">
+            <a th:href="@{/ui/devices}" class="card kpi text-decoration-none h-100">
+              <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-hdd-network"></i></span>Promoted devices</div>
+              <div class="kpi-value" th:text="${overview.promotedDevices}">0</div>
+              <div class="kpi-sub" th:text="${overview.promotion.promotedButUnreadable} + ' readings from devices whose model is uncurated'">0</div>
+            </a>
+          </div>
+          <div class="col-md-4">
+            <a th:href="@{/ui/recommendations}" class="card kpi text-decoration-none h-100">
+              <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-stars"></i></span>Recommended</div>
+              <div class="kpi-value" th:text="${overview.recommended}">0</div>
+              <div class="kpi-sub" th:text="'of ' + ${overview.candidates} + ' unpromoted devices heard'">of 0</div>
+            </a>
+          </div>
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header"><i class="bi bi-stars"></i>Top candidates
+                <a th:href="@{/ui/recommendations}" class="ms-auto small fw-normal">All recommendations</a></div>
+              <div class="table-responsive" th:if="${!candidates.isEmpty()}">
+                <table class="table table-hover">
+                  <thead><tr><th>Device</th><th>Model</th><th>Score</th><th>SNR</th><th class="text-end">Act</th></tr></thead>
+                  <tbody>
+                  <tr th:each="c : ${candidates}">
+                    <td><a class="device-key" th:href="@{/ui/devices/view(source=${c.deviceKey.source}, id=${c.deviceKey.id})}" th:text="${c.deviceKey.id}">id</a></td>
+                    <td th:text="${c.modelName ?: 'unnamed'}">model</td>
+                    <td style="width: 9rem">
+                      <div class="progress score-bar" role="progressbar"><div class="progress-bar bg-success" th:style="'width:' + ${c.score * 100} + '%'"></div></div>
+                    </td>
+                    <td class="mono" th:text="${c.medianSignal != null} ? ${#numbers.formatDecimal(c.medianSignal, 1, 1)} + ' dB' : '—'">—</td>
+                    <td class="table-actions">
+                      <a class="btn btn-sm btn-outline-secondary" title="Watch live"
+                         th:href="@{/ui/monitor(source=${c.deviceKey.source}, id=${c.deviceKey.id})}"><i class="bi bi-activity"></i></a>
+                      <button type="button" class="btn btn-sm btn-primary" hx-target="#modal-content" hx-swap="innerHTML"
+                              th:attr="hx-get=@{/ui/devices/form(source=${c.deviceKey.source}, id=${c.deviceKey.id})}">Promote</button>
+                    </td>
+                  </tr>
+                  </tbody>
+                </table>
+              </div>
+              <th:block th:if="${candidates.isEmpty()}"><div th:replace="~{ui/layout :: empty('bi-stars', 'Nothing to recommend', 'No unpromoted device has been heard often and near enough yet.')}"></div></th:block>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-activity"></i>Heard most recently
+        <a th:href="@{/ui/monitor}" class="ms-auto small fw-normal">Open the live monitor</a></div>
+      <div class="table-responsive" th:if="${!heard.isEmpty()}">
+        <table class="table table-hover">
+          <thead><tr><th>Device</th><th>Model</th><th>Last heard</th><th class="text-end">Readings</th><th class="text-end">SNR</th></tr></thead>
+          <tbody>
+          <tr th:each="h : ${heard}">
+            <td><a class="device-key" th:href="@{/ui/devices/view(source=${h.deviceKey.source}, id=${h.deviceKey.id})}" th:text="${h.deviceKey.id}">id</a></td>
+            <td th:text="${h.modelName ?: 'unnamed'}">model</td>
+            <td><time data-format="relative" th:datetime="${h.lastHeard}"></time></td>
+            <td class="text-end" th:text="${h.readings}">0</td>
+            <td class="text-end mono" th:text="${h.signal != null} ? ${#numbers.formatDecimal(h.signal, 1, 1)} : '—'">—</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+      <th:block th:if="${heard.isEmpty()}"><div th:replace="~{ui/layout :: empty('bi-broadcast', 'Nothing heard yet', 'Devices appear here as their readings arrive.')}"></div></th:block>
+    </div>
+  </div>
+</main>
+</body>
+</html>

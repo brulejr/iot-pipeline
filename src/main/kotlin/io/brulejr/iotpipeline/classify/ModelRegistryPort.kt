@@ -44,4 +44,10 @@ interface ModelRegistryPort {
      * acceptable before this is called.
      */
     fun updateCuration(fingerprint: String, category: String, sensors: List<SensorMapping>): ModelRecord?
+
+    /**
+     * Forgets a model, curation included. Returns true if it was known. A model whose
+     * devices still transmit registers itself again, uncurated, from their next reading.
+     */
+    fun delete(fingerprint: String): Boolean
 }

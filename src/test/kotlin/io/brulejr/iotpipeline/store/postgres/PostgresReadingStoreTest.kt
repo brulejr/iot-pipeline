@@ -111,4 +111,22 @@ class PostgresReadingStoreTest {
     fun `the store names the server it reached`() {
         assertTrue(store.describe().startsWith("PostgreSQL 17"), store.describe())
     }
+
+    @Test
+    fun `a device's recent values come back newest first, up to the limit`() {
+        store.store(reading(now.minusSeconds(120)))
+        store.store(reading(now.minusSeconds(60)))
+        store.store(reading(now))
+
+        val recent = store.recent(DeviceKey("rtl433", "Acurite-Tower/A/3064"), 3)
+
+        assertEquals(3, recent.size)
+        assertEquals(now, recent.first().time)
+        assertTrue(recent.zipWithNext().all { (a, b) -> !a.time.isBefore(b.time) })
+        val temperature = recent.first { it.field == "temperature_C" }
+        assertEquals(21.5, temperature.value)
+        assertNull(temperature.state)
+        assertEquals(false, recent.first { it.field == "battery_ok" }.state)
+        assertTrue(store.recent(DeviceKey("rtl433", "someone-else"), 10).isEmpty())
+    }
 }

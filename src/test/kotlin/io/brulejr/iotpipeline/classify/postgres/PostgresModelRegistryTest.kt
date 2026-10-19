@@ -93,4 +93,14 @@ class PostgresModelRegistryTest {
 
         assertEquals(listOf("older", "newer"), registry.all().map { it.fingerprint })
     }
+
+    @Test
+    fun `a deleted model is forgotten, curation and all`() {
+        registry.insertIfAbsent(model("fp").copy(category = "security", sensors = listOf(contact)))
+
+        assertTrue(registry.delete("fp"))
+
+        assertNull(registry.find("fp"))
+        assertFalse(registry.delete("fp"))
+    }
 }

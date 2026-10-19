@@ -8,11 +8,14 @@
  */
 package io.brulejr.iotpipeline.store.postgres
 
+import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.parse.ParsedReading
 import io.brulejr.iotpipeline.parse.SensorValue
+import io.brulejr.iotpipeline.pipeline.getInstant
 import io.brulejr.iotpipeline.pipeline.toTimestamptz
 import io.brulejr.iotpipeline.store.ReadingStorePort
 import io.brulejr.iotpipeline.store.StoreDatafill
+import io.brulejr.iotpipeline.store.StoredValue
 import org.slf4j.LoggerFactory
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations
@@ -60,6 +63,28 @@ class PostgresReadingStore(
     override fun describe(): String {
         val version = jdbc.jdbcOperations.queryForObject("SHOW server_version", String::class.java)
         return "PostgreSQL $version, table readings"
+    }
+
+    /** Served by the (source, device, time) index, newest first. */
+    override fun recent(deviceKey: DeviceKey, limit: Int): List<StoredValue> = jdbc.query(
+        """
+        SELECT time, sensor, field, value, state FROM readings
+        WHERE source = :source AND device = :device
+        ORDER BY time DESC
+        LIMIT :limit
+        """,
+        MapSqlParameterSource()
+            .addValue("source", deviceKey.source)
+            .addValue("device", deviceKey.id)
+            .addValue("limit", limit),
+    ) { rs, _ ->
+        StoredValue(
+            time = checkNotNull(rs.getInstant("time")),
+            sensor = rs.getString("sensor"),
+            field = rs.getString("field"),
+            value = rs.getDouble("value").takeUnless { rs.wasNull() },
+            state = rs.getBoolean("state").takeUnless { rs.wasNull() },
+        )
     }
 
     internal fun rowFor(reading: ParsedReading, value: SensorValue): MapSqlParameterSource =

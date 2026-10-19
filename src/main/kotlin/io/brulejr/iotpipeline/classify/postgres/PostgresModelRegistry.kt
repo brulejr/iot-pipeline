@@ -89,6 +89,11 @@ class PostgresModelRegistry(
         return find(fingerprint)
     }
 
+    override fun delete(fingerprint: String): Boolean = jdbc
+        .sql("DELETE FROM models WHERE fingerprint = :fingerprint")
+        .param("fingerprint", fingerprint)
+        .update() > 0
+
     private fun sensorsJson(sensors: List<SensorMapping>): String =
         jsonMapper.writeValueAsString(sensors.map { StoredSensorMapping.of(it) })
 

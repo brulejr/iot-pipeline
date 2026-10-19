@@ -8,6 +8,7 @@
  */
 package io.brulejr.iotpipeline.store
 
+import io.brulejr.iotpipeline.classify.DeviceKey
 import io.brulejr.iotpipeline.parse.ParsedReading
 
 /**
@@ -26,4 +27,7 @@ interface ReadingStorePort {
      * be reached throws.
      */
     fun describe(): String
+
+    /** The latest values stored for [deviceKey], newest first, at most [limit] of them. */
+    fun recent(deviceKey: DeviceKey, limit: Int): List<StoredValue>
 }

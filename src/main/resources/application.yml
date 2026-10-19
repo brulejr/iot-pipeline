@@ -126,6 +126,21 @@ pipeline:
       enabled: true
       location: classpath:model-seed.json
 
+  # The live monitor behind the console's /ui/monitor page: every classified reading,
+  # streamed to whoever is watching, and the devices heard recently. In memory only.
+  monitor:
+    max-subscribers: 8
+    queue-capacity: 256
+    heartbeat: 15s
+    stream-timeout: 1h
+    heard-for: 1h
+    heard-devices: 1000
+
+  # The operator console, served under /ui.
+  console:
+    refresh-interval: 10s
+    recent-readings: 100
+
   dedupe:
     enabled: true
     # Long enough to span repeated decodes of one transmission, far shorter than a

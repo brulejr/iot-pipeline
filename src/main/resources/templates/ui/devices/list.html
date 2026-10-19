@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title='Devices', active='devices', content=~{::main})}">
+<body>
+<main class="console-content">
+  <div class="page-header">
+    <div>
+      <h1>Promoted devices <span class="badge text-bg-secondary align-middle fs-6" th:text="${total}">0</span></h1>
+      <p class="lead-text">Devices approved to pass the gate: their readings are parsed, stored and published to
+        Home Assistant. Demoting one removes it from Home Assistant.</p>
+    </div>
+    <div class="actions">
+      <a th:href="@{/ui/monitor(scope='UNPROMOTED', changes=true)}" class="btn btn-outline-secondary">
+        <i class="bi bi-search-heart me-1"></i>Identify a device</a>
+      <button type="button" class="btn btn-primary" th:hx-get="@{/ui/devices/form}" hx-target="#modal-content" hx-swap="innerHTML">
+        <i class="bi bi-plus-lg me-1"></i>Promote a device</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <form id="device-filter" class="filter-bar w-100" th:hx-get="@{/ui/devices/rows}" hx-target="#device-rows"
+            hx-swap="outerHTML" hx-trigger="input changed delay:250ms from:#device-q, change from:#device-area, submit">
+        <div class="search-input flex-grow-1"><i class="bi bi-search"></i>
+          <input class="form-control" id="device-q" type="search" name="q" th:value="${q}" placeholder="Search name, type, area or id"></div>
+        <select class="form-select w-auto" id="device-area" name="area" aria-label="Area">
+          <option value="">All areas</option>
+          <option th:each="a : ${areas}" th:value="${a}" th:text="${a}" th:selected="${a == area}">area</option>
+        </select>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>Device</th><th>Area</th><th>Type</th><th>Key</th><th>Last heard</th><th>Promoted</th><th></th></tr></thead>
+        <tbody id="device-rows" th:fragment="rows" th:hx-get="@{/ui/devices/rows}" hx-trigger="devicesChanged from:body"
+               hx-include="#device-filter" hx-target="this" hx-swap="outerHTML" hx-disinherit="*">
+        <tr th:each="row : ${devices}" th:with="d=${row.device}">
+          <td><a class="fw-semibold text-decoration-none" th:href="@{/ui/devices/view(source=${d.deviceKey.source}, id=${d.deviceKey.id})}"
+                 th:text="${d.name}">name</a></td>
+          <td th:text="${d.area}">area</td>
+          <td><span class="badge badge-soft text-body-secondary bg-body-tertiary border-secondary-subtle" th:text="${d.type}">type</span></td>
+          <td><span class="device-key" th:text="${d.deviceKey.id}">id</span>
+            <span class="small text-body-secondary" th:text="${d.deviceKey.source}">rtl433</span></td>
+          <td>
+            <th:block th:if="${row.heard != null}">
+              <time data-format="relative" th:datetime="${row.heard.lastHeard}"></time>
+              <span class="small text-body-secondary mono" th:if="${row.heard.signal != null}"
+                    th:text="' · ' + ${#numbers.formatDecimal(row.heard.signal, 1, 1)} + ' dB'"></span>
+            </th:block>
+            <span th:if="${row.heard == null}" class="small text-body-secondary">not this past hour</span>
+          </td>
+          <td><time data-format="relative" th:datetime="${d.promotedAt}"></time></td>
+          <td class="table-actions">
+            <a class="btn btn-sm btn-outline-secondary" title="Watch live"
+               th:href="@{/ui/monitor(source=${d.deviceKey.source}, id=${d.deviceKey.id})}"><i class="bi bi-activity"></i></a>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="Edit" hx-target="#modal-content" hx-swap="innerHTML"
+                    th:hx-get="@{/ui/devices/form(source=${d.deviceKey.source}, id=${d.deviceKey.id})}"><i class="bi bi-pencil"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-danger" title="Demote" hx-swap="none" data-confirm-label="Demote"
+                    th:hx-delete="@{/ui/devices(source=${d.deviceKey.source}, id=${d.deviceKey.id})}"
+                    th:hx-confirm="'Demote ' + ${d.name} + '? Its readings stop being stored, and it is removed from Home Assistant.'">
+              <i class="bi bi-shield-x"></i></button>
+          </td>
+        </tr>
+        <tr th:if="${devices.isEmpty()}"><td colspan="7">
+          <div th:replace="~{ui/layout :: empty('bi-hdd-network', 'No promoted devices match', 'Promote one from Recommendations, the live monitor, or by its key.')}"></div>
+        </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+</body>
+</html>

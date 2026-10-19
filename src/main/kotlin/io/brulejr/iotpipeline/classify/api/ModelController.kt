@@ -12,6 +12,7 @@ import io.brulejr.iotpipeline.classify.CurationResult
 import io.brulejr.iotpipeline.classify.ModelRecord
 import io.brulejr.iotpipeline.classify.ClassificationService
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
@@ -39,6 +40,14 @@ class ModelController(private val service: ClassificationService) {
         service.model(fingerprint)
             ?.let { ResponseEntity.ok(it) }
             ?: ResponseEntity.notFound().build()
+
+    /**
+     * Forgets a model and its curation. One still being heard registers itself again,
+     * uncurated, from its next reading.
+     */
+    @DeleteMapping("/{fingerprint}")
+    fun delete(@PathVariable fingerprint: String): ResponseEntity<Void> =
+        if (service.delete(fingerprint)) ResponseEntity.noContent().build() else ResponseEntity.notFound().build()
 
     /**
      * Records what a human decides about a model: its category and its sensor mappings.

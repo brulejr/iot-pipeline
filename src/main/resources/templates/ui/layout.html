@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!--/* The console's frame: sidebar, top bar, toast area and the dialogs every page shares.
+       A page replaces its <html> with page(title, active, ~{::main}). */-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, active, content)">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","scrollIntoViewOnBoost":false}'>
+  <title th:text="${title} + ' · IoT Pipeline'">IoT Pipeline</title>
+  <link rel="icon" type="image/svg+xml" th:href="@{/ui/favicon.svg}">
+  <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+  <link rel="stylesheet" th:href="@{/webjars/bootstrap-icons/font/bootstrap-icons.min.css}">
+  <link rel="stylesheet" th:href="@{/ui/console.css}">
+  <script>
+    // Before first paint, so a dark page never flashes light.
+    (function () {
+      var theme = 'light';
+      try {
+        theme = localStorage.getItem('console-theme')
+          || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (e) {}
+      document.documentElement.setAttribute('data-bs-theme', theme);
+    })();
+  </script>
+  <script defer th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
+  <script defer th:src="@{/webjars/htmx-ext-sse/dist/sse.js}"></script>
+  <script defer th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+  <script defer th:src="@{/ui/console.js}"></script>
+</head>
+<body hx-boost="true">
+<div class="console-shell">
+  <nav class="console-sidebar offcanvas-lg offcanvas-start" id="sidebar" tabindex="-1" aria-label="Console navigation">
+    <div class="console-brand">
+      <a th:href="@{/ui}" class="d-flex align-items-center gap-2 text-decoration-none">
+        <span class="console-logo"><i class="bi bi-broadcast-pin"></i></span>
+        <span>
+          <span class="d-block fw-semibold text-white lh-sm">IoT Pipeline</span>
+          <span class="d-block small console-brand-sub">433 MHz console</span>
+        </span>
+      </a>
+      <button type="button" class="btn-close btn-close-white d-lg-none ms-auto" data-bs-dismiss="offcanvas"
+              data-bs-target="#sidebar" aria-label="Close"></button>
+    </div>
+    <div class="console-nav">
+      <div class="console-nav-label">Overview</div>
+      <a th:href="@{/ui}" class="nav-link" th:classappend="${active == 'dashboard'} ? 'active'">
+        <i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+      <a th:href="@{/ui/monitor}" class="nav-link" th:classappend="${active == 'monitor'} ? 'active'">
+        <i class="bi bi-activity"></i><span>Live monitor</span></a>
+      <div class="console-nav-label">Data</div>
+      <a th:href="@{/ui/devices}" class="nav-link" th:classappend="${active == 'devices'} ? 'active'">
+        <i class="bi bi-hdd-network"></i><span>Devices</span></a>
+      <a th:href="@{/ui/recommendations}" class="nav-link" th:classappend="${active == 'recommendations'} ? 'active'">
+        <i class="bi bi-stars"></i><span>Recommendations</span></a>
+      <a th:href="@{/ui/models}" class="nav-link" th:classappend="${active == 'models'} ? 'active'">
+        <i class="bi bi-diagram-3"></i><span>Models</span></a>
+      <div class="console-nav-label">System</div>
+      <a th:href="@{/mgmt/health}" class="nav-link" hx-boost="false" target="_blank" rel="noopener">
+        <i class="bi bi-heart-pulse"></i><span>Health</span><i class="bi bi-box-arrow-up-right ms-auto small"></i></a>
+      <a th:href="@{/mgmt/info}" class="nav-link" hx-boost="false" target="_blank" rel="noopener">
+        <i class="bi bi-info-circle"></i><span>Info</span><i class="bi bi-box-arrow-up-right ms-auto small"></i></a>
+    </div>
+  </nav>
+
+  <div class="console-main">
+    <header class="console-topbar">
+      <button class="btn btn-sm btn-outline-secondary d-lg-none" type="button" data-bs-toggle="offcanvas"
+              data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Open navigation">
+        <i class="bi bi-list"></i>
+      </button>
+      <span class="console-topbar-title" th:text="${title}">Page</span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="htmx-indicator spinner-border spinner-border-sm text-secondary" id="global-indicator"
+              role="status" aria-label="Loading"></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-theme-toggle
+                title="Switch between light and dark" aria-label="Switch between light and dark">
+          <i class="bi bi-moon-stars theme-icon-light"></i><i class="bi bi-sun theme-icon-dark"></i>
+        </button>
+      </span>
+    </header>
+    <main th:replace="${content}">Content</main>
+  </div>
+</div>
+
+<div id="toasts" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite"></div>
+
+<div class="modal fade" id="modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" id="modal-content"></div>
+  </div>
+</div>
+
+<div class="modal fade" id="confirm" tabindex="-1" aria-hidden="true" aria-labelledby="confirm-title">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h2 class="modal-title fs-5" id="confirm-title"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Are you sure?</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel"></button>
+      </div>
+      <div class="modal-body confirm-question"></div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" data-confirm-ok>Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+
+<!--/* A notice for the corner, moved there out of band from whatever response carries it. */-->
+<div th:fragment="toast(toast)" th:if="${toast != null}" hx-swap-oob="beforeend:#toasts">
+  <div class="toast align-items-center border-0" role="status" aria-atomic="true"
+       th:classappend="'text-bg-' + ${toast.level}">
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="bi me-1" th:classappend="${toast.level == 'success'} ? 'bi-check-circle' : 'bi-exclamation-circle'"></i>
+        <span th:text="${toast.message}">Saved</span>
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+
+<!--/* A response that is only a notice: the dialog it answers closes, and nothing else changes. */-->
+<th:block th:fragment="toastOnly"><div th:replace="~{ui/layout :: toast(${toast})}"></div></th:block>
+
+<!--/* An empty table or list, explained. */-->
+<div th:fragment="empty(icon, heading, text)" class="console-empty">
+  <i class="bi" th:classappend="${icon}"></i>
+  <div class="fw-semibold" th:text="${heading}">Nothing here</div>
+  <div class="text-body-secondary small" th:text="${text}">Nothing to show yet.</div>
+</div>

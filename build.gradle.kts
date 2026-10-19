@@ -24,6 +24,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jackson")
+    // The operator console: server-rendered pages, made interactive with htmx.
+    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+    // Lets pages name a WebJar's files without its version: /webjars/htmx.org/dist/htmx.min.js.
+    implementation("org.webjars:webjars-locator-lite")
+    implementation(libs.webjars.bootstrap)
+    implementation(libs.webjars.bootstrap.icons)
+    implementation(libs.webjars.htmx)
+    implementation(libs.webjars.htmx.ext.sse)
     implementation("org.springframework.integration:spring-integration-mqtt")
     // Paho is an optional dependency of spring-integration-mqtt, so it must be declared explicitly.
     implementation(libs.paho.mqttv3)

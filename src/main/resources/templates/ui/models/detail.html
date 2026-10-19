@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title=${model.name ?: 'Model'}, active='models', content=~{::main})}">
+<body>
+<main class="console-content">
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a th:href="@{/ui/models}">Models</a></li>
+      <li class="breadcrumb-item active" aria-current="page" th:text="${model.name ?: 'unnamed'}">model</li>
+    </ol>
+  </nav>
+  <div class="page-header">
+    <div>
+      <h1><span th:text="${model.name ?: 'Unnamed model'}">Model</span>
+        <span th:if="${model.recognised}" class="badge badge-soft fs-6 align-middle text-success-emphasis bg-success-subtle border-success-subtle">curated</span>
+        <span th:unless="${model.recognised}" class="badge badge-soft fs-6 align-middle text-warning-emphasis bg-warning-subtle border-warning-subtle">not curated</span>
+      </h1>
+      <p class="lead-text mb-0">
+        <span class="fingerprint" th:text="${model.fingerprint}">fingerprint</span>
+        · <span th:text="${model.source}">rtl433</span>
+        · discovered <time data-format="relative" th:datetime="${model.discoveredAt}"></time>
+      </p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn btn-outline-danger"
+              th:hx-delete="@{/ui/models/{fp}(fp=${model.fingerprint})}" hx-swap="none" data-confirm-label="Delete model"
+              th:hx-confirm="'Delete ' + (${model.name} ?: 'this model') + ' and its curation? If its devices are still transmitting it registers itself again, uncurated. A model in the seed file comes back at the next restart.'">
+        <i class="bi bi-trash me-1"></i>Delete</button>
+    </div>
+  </div>
+
+  <div id="model-detail" th:fragment="detail" class="row g-4">
+    <div class="col-xl-8">
+      <form class="card" th:hx-post="@{/ui/models/{fp}/curation(fp=${model.fingerprint})}" hx-target="#model-detail"
+            hx-swap="outerHTML">
+        <div class="card-header"><i class="bi bi-sliders"></i>Curation</div>
+        <div class="card-body">
+          <div th:if="${!problems.isEmpty()}" class="alert alert-danger" role="alert">
+            <div class="fw-semibold mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Nothing was saved</div>
+            <ul class="mb-0 small">
+              <li th:each="p : ${problems}"><span class="mono" th:text="${p.field}">field</span>: <span th:text="${p.reason}">reason</span></li>
+            </ul>
+          </div>
+          <div class="row g-3 mb-1">
+            <div class="col-md-6">
+              <label for="category" class="form-label fw-semibold">Category</label>
+              <input class="form-control" id="category" name="category" list="categories" required
+                     th:value="${model.category == 'uncategorised'} ? '' : ${model.category}"
+                     th:classappend="${problemFields.contains('category')} ? 'is-invalid'"
+                     placeholder="e.g. weather, security">
+              <datalist id="categories"><option th:each="c : ${categories}" th:value="${c}"></option></datalist>
+              <div class="form-text">What kind of device this model is.</div>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table sensor-table">
+            <thead><tr><th>Field</th><th>Reads as</th><th>Class</th><th>Display name</th><th class="text-center">Inverted</th><th></th></tr></thead>
+            <tbody id="sensor-rows" th:attr="data-next-index=${nextIndex}">
+            <th:block th:each="row : ${rows}"><tr th:replace="~{ui/models/detail :: sensorRow}"></tr></th:block>
+            </tbody>
+          </table>
+        </div>
+        <datalist id="classnames"><option th:each="c : ${classnames}" th:value="${c}"></option></datalist>
+        <div class="card-body d-flex flex-wrap gap-2 align-items-center border-top">
+          <button type="button" class="btn btn-outline-secondary btn-sm" hx-target="#sensor-rows" hx-swap="beforeend"
+                  th:hx-get="@{/ui/models/{fp}/sensor-row(fp=${model.fingerprint})}"
+                  hx-vals="js:{index: consoleNextIndex('sensor-rows')}">
+            <i class="bi bi-plus-lg me-1"></i>Add sensor</button>
+          <span class="small text-body-secondary">Inverted: the field is true when Home Assistant's class means false,
+            such as <span class="mono">battery_ok</span> under <span class="mono">battery</span>.</span>
+          <button type="submit" class="btn btn-primary ms-auto"><i class="bi bi-check2 me-1"></i>Save curation</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="col-xl-4 d-flex flex-column gap-4">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-braces"></i>Structure</div>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Field</th><th>Type</th><th>Last</th></tr></thead>
+            <tbody>
+            <tr th:each="f : ${fields}" th:classappend="${!f.mappable} ? 'text-body-secondary'">
+              <td><span class="mono" th:text="${f.name}">field</span>
+                <span th:if="${f.mappedAs != null}" class="badge badge-soft text-success-emphasis bg-success-subtle border-success-subtle ms-1"
+                      th:text="${f.mappedAs}">temperature</span></td>
+              <td class="small" th:text="${f.type}">number</td>
+              <td class="mono small text-truncate" style="max-width: 8rem" th:text="${f.example ?: '—'}" th:title="${f.example}">—</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" th:if="${preview != null}">
+        <div class="card-header"><i class="bi bi-eye"></i>Last reading, as saved curation reads it</div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between" th:each="v : ${preview}">
+            <span><span th:text="${v.mapping.friendlyName ?: v.mapping.classname}">class</span>
+              <span class="small text-body-secondary mono" th:text="'(' + ${v.mapping.name} + ')'"></span></span>
+            <span class="fw-semibold mono"
+                  th:text="${v.mapping.type.name() == 'ANALOG'} ? ${v.value} : (${v.on} ? 'on' : 'off')">value</span>
+          </li>
+          <li class="list-group-item text-body-secondary small" th:if="${preview.isEmpty()}">No sensors are mapped yet.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><i class="bi bi-broadcast"></i>Devices heard this past hour</div>
+        <ul class="list-group list-group-flush" th:if="${!heard.isEmpty()}">
+          <li class="list-group-item d-flex align-items-center gap-2" th:each="h : ${heard}">
+            <a class="device-key text-decoration-none" th:href="@{/ui/devices/view(source=${h.deviceKey.source}, id=${h.deviceKey.id})}"
+               th:text="${h.deviceKey.id}">id</a>
+            <time class="small text-body-secondary ms-auto" data-format="relative" th:datetime="${h.lastHeard}"></time>
+            <a class="btn btn-sm btn-outline-secondary" title="Watch live"
+               th:href="@{/ui/monitor(source=${h.deviceKey.source}, id=${h.deviceKey.id})}"><i class="bi bi-activity"></i></a>
+          </li>
+        </ul>
+        <th:block th:if="${heard.isEmpty()}"><div th:replace="~{ui/layout :: empty('bi-broadcast', 'None heard recently', 'Example values appear once a device of this model is heard.')}"></div></th:block>
+      </div>
+    </div>
+    <div th:replace="~{ui/layout :: toast(${toast})}"></div>
+  </div>
+</main>
+
+<table>
+  <tr th:fragment="sensorRow" class="sensor-row" th:classappend="${problemFields.contains(row.name)} ? 'table-danger'">
+    <td>
+      <select class="form-select form-select-sm" th:name="|sensors[${row.index}].name|" aria-label="Field"
+              onchange="consoleSuggestType(this)">
+        <option value="">Choose a field…</option>
+        <option th:each="f : ${fields}" th:if="${f.mappable or f.name == row.name}" th:value="${f.name}"
+                th:attr="data-type=${f.type}" th:selected="${f.name == row.name}"
+                th:text="${f.name} + ' (' + ${f.type} + (${f.example != null} ? ', ' + ${f.example} : '') + ')'">field</option>
+      </select>
+    </td>
+    <td>
+      <select class="form-select form-select-sm" th:name="|sensors[${row.index}].type|" aria-label="Reads as">
+        <option value="ANALOG" th:selected="${row.type == 'ANALOG'}">Measurement</option>
+        <option value="BINARY" th:selected="${row.type == 'BINARY'}">On / off</option>
+      </select>
+    </td>
+    <td><input class="form-control form-control-sm" list="classnames" th:name="|sensors[${row.index}].classname|"
+               th:value="${row.classname}" placeholder="temperature" aria-label="Class"></td>
+    <td><input class="form-control form-control-sm" th:name="|sensors[${row.index}].friendlyName|"
+               th:value="${row.friendlyName}" placeholder="optional" aria-label="Display name"></td>
+    <td class="text-center">
+      <div class="form-check form-switch d-inline-block m-0">
+        <input class="form-check-input" type="checkbox" role="switch" value="true" aria-label="Inverted"
+               th:name="|sensors[${row.index}].inverted|" th:checked="${row.inverted}">
+      </div>
+    </td>
+    <td class="text-end">
+      <button type="button" class="btn btn-sm btn-link text-danger" title="Remove this sensor" aria-label="Remove"
+              onclick="this.closest('tr').remove()"><i class="bi bi-x-circle"></i></button>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

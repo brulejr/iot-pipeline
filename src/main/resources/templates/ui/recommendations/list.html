@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title='Recommendations', active='recommendations', content=~{::main})}">
+<body>
+<main class="console-content">
+  <div class="page-header">
+    <div>
+      <h1>Recommendations</h1>
+      <p class="lead-text">Unpromoted devices heard over the last <span th:text="${datafill.windowHours}">24</span> hours,
+        ranked by how near they sound and how persistently they are around. Recommended ones were heard in at least
+        <span th:text="${datafill.minHoursHeard}">3</span> hours, and loud enough to be yours rather than a neighbour's.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <form class="filter-bar w-100" th:hx-get="@{/ui/recommendations/rows}" hx-target="#recommendation-rows" hx-swap="outerHTML"
+            hx-trigger="change">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Which devices">
+          <input type="radio" class="btn-check" name="all" id="only-recommended" value="false" th:checked="${!all}">
+          <label class="btn btn-outline-secondary" for="only-recommended">Recommended</label>
+          <input type="radio" class="btn-check" name="all" id="all-heard" value="true" th:checked="${all}">
+          <label class="btn btn-outline-secondary" for="all-heard">Every device heard</label>
+        </div>
+        <span class="small text-body-secondary ms-auto">Refreshes every 30 seconds</span>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>#</th><th>Device</th><th>Model</th><th>Score</th><th>Hours heard</th><th>Median SNR</th><th>Readings</th><th>Last heard</th><th></th></tr></thead>
+        <tbody id="recommendation-rows" th:fragment="rows" th:hx-get="@{/ui/recommendations/rows(all=${all})}"
+               hx-trigger="every 30s, devicesChanged from:body" hx-target="this" hx-swap="outerHTML" hx-disinherit="*">
+        <tr th:each="c, stat : ${candidates}">
+          <td class="text-body-secondary" th:text="${stat.count}">1</td>
+          <td>
+            <a class="device-key text-decoration-none" th:href="@{/ui/devices/view(source=${c.deviceKey.source}, id=${c.deviceKey.id})}"
+               th:text="${c.deviceKey.id}">id</a>
+            <span th:if="${c.recommended}" class="badge text-bg-success ms-1">recommended</span>
+          </td>
+          <td>
+            <a class="text-decoration-none" th:href="@{/ui/models/{fp}(fp=${c.modelFingerprint})}" th:text="${c.modelName ?: 'unnamed'}">model</a>
+            <span th:unless="${c.modelCurated}" class="badge badge-soft text-warning-emphasis bg-warning-subtle border-warning-subtle ms-1"
+                  title="Curate the model too, or the device's readings cannot be read">not curated</span>
+          </td>
+          <td style="min-width: 9rem">
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress score-bar flex-grow-1" role="progressbar" th:attr="aria-valuenow=${c.score * 100}">
+                <div class="progress-bar" th:classappend="${c.recommended} ? 'bg-success' : 'bg-secondary'" th:style="'width:' + ${c.score * 100} + '%'"></div></div>
+              <span class="small mono" th:text="${#numbers.formatDecimal(c.score * 100, 1, 0)}">0</span>
+            </div>
+          </td>
+          <td><span th:text="${c.hoursHeard}">0</span><span class="text-body-secondary" th:text="' / ' + ${c.windowHours}"></span></td>
+          <td class="mono" th:text="${c.medianSignal != null} ? ${#numbers.formatDecimal(c.medianSignal, 1, 1)} + ' dB' : '—'">—</td>
+          <td th:text="${c.sightings}">0</td>
+          <td><time data-format="relative" th:datetime="${c.lastSeen}"></time></td>
+          <td class="table-actions">
+            <a class="btn btn-sm btn-outline-secondary" title="Watch live"
+               th:href="@{/ui/monitor(source=${c.deviceKey.source}, id=${c.deviceKey.id})}"><i class="bi bi-activity"></i> Watch</a>
+            <button type="button" class="btn btn-sm btn-primary" hx-target="#modal-content" hx-swap="innerHTML"
+                    th:hx-get="@{/ui/devices/form(source=${c.deviceKey.source}, id=${c.deviceKey.id})}">
+              <i class="bi bi-shield-plus"></i> Promote</button>
+          </td>
+        </tr>
+        <tr th:if="${candidates.isEmpty()}"><td colspan="9">
+          <div th:replace="~{ui/layout :: empty('bi-stars', ${all} ? 'No unpromoted device heard' : 'Nothing recommended yet', ${all} ? 'Devices appear as their readings arrive.' : 'Show every device heard to see the ones that fell short.')}"></div>
+        </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+</body>
+</html>

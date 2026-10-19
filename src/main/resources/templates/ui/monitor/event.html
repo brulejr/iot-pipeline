@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!--/* One reading on the live feed. Rendered outside any request, on the stream's own
+       thread, so links come from ${links} rather than @{…}, and folded onto one line to
+       travel as a server-sent event. */-->
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="event" class="feed-event"
+     th:classappend="${event.firstHeard} ? 'first-heard' : (${event.changed} ? 'changed' : '')">
+  <div class="feed-meta">
+    <time class="feed-time" data-format="time" th:datetime="${event.receivedAt}"></time>
+    <a th:if="${event.deviceKey != null}" class="device-key fw-semibold text-decoration-none"
+       th:href="${links.device(event.deviceKey)}" th:text="${event.deviceKey.id}">device</a>
+    <span th:if="${event.deviceKey == null}" class="fst-italic text-body-secondary">unidentified device</span>
+    <span th:if="${event.promotion != null}" class="badge badge-soft text-success-emphasis bg-success-subtle border-success-subtle">
+      <i class="bi bi-check2-circle"></i> <span th:text="${event.promotion.name}">name</span></span>
+    <span th:if="${event.promotion == null and event.deviceKey != null}"
+          class="badge badge-soft text-body-secondary bg-body-tertiary border-secondary-subtle">unpromoted</span>
+    <span th:if="${event.firstHeard}" class="badge text-bg-info">first heard</span>
+    <span th:if="${!event.firstHeard and event.changed}" class="badge text-bg-warning">changed</span>
+    <a class="badge badge-soft text-decoration-none text-primary-emphasis bg-primary-subtle border-primary-subtle"
+       th:href="${links.model(event.modelFingerprint)}"
+       th:title="${event.modelCurated} ? 'Curated model' : 'Model not curated yet'">
+      <i class="bi" th:classappend="${event.modelCurated} ? 'bi-diagram-3' : 'bi-question-diamond'"></i>
+      <span th:text="${event.modelName ?: 'unnamed model'}">model</span></a>
+    <span th:if="${event.signal != null}" class="small text-body-secondary mono"
+          th:text="${#numbers.formatDecimal(event.signal, 1, 1)} + ' dB'">0 dB</span>
+    <span class="feed-actions" th:if="${event.deviceKey != null}">
+      <a class="btn btn-outline-secondary" th:href="${links.monitor(event.deviceKey)}" title="Watch only this device">
+        <i class="bi bi-crosshair"></i> Watch</a>
+      <button th:if="${event.promotion == null}" type="button" class="btn btn-primary" hx-target="#modal-content" hx-swap="innerHTML"
+              th:attr="hx-get=${links.promote(event.deviceKey)}"><i class="bi bi-plus-lg"></i> Promote</button>
+    </span>
+  </div>
+  <div class="feed-fields"><span th:each="f : ${event.fields}" class="field-chip"
+        th:classappend="(${f.changed} ? 'changed ' : '') + (${f.radio} ? 'radio' : '')"
+        th:title="${f.changed} ? ('was ' + (${f.previous} ?: 'absent')) : null"><span class="k" th:text="${f.name}">k</span><span
+        class="v" th:text="${f.value}">v</span><span th:if="${f.changed}" class="was" th:text="${f.previous ?: '∅'}">was</span></span></div>
+</div>
+
+<div th:fragment="refused" class="alert alert-warning m-3">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  <span th:text="'Too many live streams are open (the limit is ' + ${max} + '). Close another monitor tab; this one will retry.'">Too many streams</span>
+</div>
+</body>
+</html>

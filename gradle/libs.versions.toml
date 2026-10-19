@@ -4,9 +4,19 @@ kotlin = "2.3.21"
 spring-boot = "4.1.1"
 spring-dependency-management = "1.1.7"
 paho = "1.2.5"
+# The console's browser libraries, served from the jar so it works without internet.
+bootstrap = "5.3.8"
+bootstrap-icons = "1.13.2"
+htmx = "2.0.11"
+htmx-ext-sse = "2.2.4"
 
 [libraries]
 paho-mqttv3 = { module = "org.eclipse.paho:org.eclipse.paho.client.mqttv3", version.ref = "paho" }
+
+webjars-bootstrap = { module = "org.webjars:bootstrap", version.ref = "bootstrap" }
+webjars-bootstrap-icons = { module = "org.webjars.npm:bootstrap-icons", version.ref = "bootstrap-icons" }
+webjars-htmx = { module = "org.webjars.npm:htmx.org", version.ref = "htmx" }
+webjars-htmx-ext-sse = { module = "org.webjars.npm:htmx-ext-sse", version.ref = "htmx-ext-sse" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

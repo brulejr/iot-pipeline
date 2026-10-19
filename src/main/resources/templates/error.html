@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title=${status == 404} ? 'Not found' : 'Error', active='', content=~{::main})}">
+<body>
+<main class="console-content">
+  <div class="card mx-auto mt-5" style="max-width: 36rem">
+    <div class="card-body text-center p-5">
+      <div class="display-5 fw-semibold text-body-secondary" th:text="${status}">500</div>
+      <h1 class="h4 mt-2" th:text="${status == 404} ? 'Nothing here' : 'Something went wrong'">Something went wrong</h1>
+      <p class="text-body-secondary" th:text="${message != null and !#strings.isEmpty(message)} ? ${message} : ${error}">error</p>
+      <a th:href="@{/ui}" class="btn btn-primary mt-2"><i class="bi bi-speedometer2 me-1"></i>Back to the dashboard</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

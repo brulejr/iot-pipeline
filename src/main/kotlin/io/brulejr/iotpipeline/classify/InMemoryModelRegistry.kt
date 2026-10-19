@@ -43,4 +43,6 @@ class InMemoryModelRegistry : ModelRegistryPort {
 
     override fun updateCuration(fingerprint: String, category: String, sensors: List<SensorMapping>): ModelRecord? =
         byFingerprint.computeIfPresent(fingerprint) { _, model -> model.copy(category = category, sensors = sensors) }
+
+    override fun delete(fingerprint: String): Boolean = byFingerprint.remove(fingerprint) != null
 }

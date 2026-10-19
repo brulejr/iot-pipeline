@@ -45,7 +45,7 @@ class ActuatorContributionTest {
     /** MQTT ingestion is disabled here, so it contributes neither. */
     private val features = listOf(
         "fingerprint", "dedupe", "classification", "promotion", "recommendation", "parse", "store", "transform",
-        "publish",
+        "publish", "monitor", "console",
     )
 
     @Test

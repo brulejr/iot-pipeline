@@ -7,8 +7,8 @@ doc: read it before changing pipeline structure.
 
 Status: stages 1-7 work — ingest, fingerprint and dedupe, classification, the
 promotion gate, recommendation of unpromoted devices, parsing, PostgreSQL storage,
-shaping for Home Assistant, and publication to the consumer's MQTT broker.
-Alerting (stage 8) is not started.
+shaping for Home Assistant, and publication to the consumer's MQTT broker, with
+an operator console and live monitor under `/ui`. Alerting (stage 8) is not started.
 
 @.claude/CONVENTIONS.md
 
@@ -24,6 +24,12 @@ Cross-cutting pieces live in `pipeline/`: `PipelineChannels.kt` names the
 channels joining the stages, `PipelineConfig` declares them, the error log and
 the `DatabaseMigrator`, and `RegistryType`, `DatabaseDatafill` (the schema) and
 `SqlTimestamps.kt` serve every PostgreSQL-backed feature.
+The operator console under `/ui` is Thymeleaf plus htmx: a feature's page
+controller is a `@Controller` in its `web/` package beside `api/`, calling the same
+`*Service` as the REST one. `console/` holds the dashboard and the shared web
+pieces (`Htmx`, `Toast`, `ConsoleLinks`); `monitor/` is the live stream, fed by a
+wire tap on `classifiedChannel`. Templates are in `src/main/resources/templates/ui`,
+the stylesheet and script in `static/ui`.
 Ingestion adapters are transport-specific subpackages (`ingest/mqtt/`) that
 all end by sending a `SensorEnvelope` to `PipelineChannels.INGEST`.
 
@@ -80,6 +86,13 @@ docker compose up -d     # dev services via COMPOSE_FILE in .env: PostgreSQL :54
 - Startup fails if PostgreSQL is unreachable while anything uses it, by design:
   the schema is migrated before the first reading. Set
   `pipeline.store.enabled=false` and the registries to `memory` to run without it.
+- Templates and Kotlin: give a template Java collections (`toMutableList()`,
+  `toHashSet()`), never `emptyList()`/`emptySet()`, whose singletons SpEL cannot
+  call methods on. Never put `th:if` or `th:each` on the element carrying
+  `th:replace`, which runs first and ignores them; wrap it in a `th:block`.
+  Elements issuing htmx requests inherit `hx-target`/`hx-swap` from their
+  ancestors, so a container that sets them also sets `hx-disinherit="*"`.
+  `ConsolePagesTest` renders every page; extend it with each new one.
 - Every `.kt` file under `src/` opens with the MIT license header: a `/* */`
   block comment (not KDoc, which would attach to the first declaration) above
   the `package` line, carrying the copyright line and

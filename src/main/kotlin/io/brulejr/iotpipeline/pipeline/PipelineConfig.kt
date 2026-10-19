@@ -78,6 +78,9 @@ class PipelineConfig {
     @Bean(PipelineChannels.UNKNOWN_DEVICE)
     fun unknownDeviceChannel(): MessageChannel = DirectChannel()
 
+    @Bean(PipelineChannels.MONITOR)
+    fun monitorChannel(): MessageChannel = DirectChannel()
+
     @Bean(PipelineChannels.INGEST_ERRORS)
     fun ingestErrorChannel(): MessageChannel = DirectChannel()
 

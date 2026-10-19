@@ -63,8 +63,8 @@ profile file.
   ones.
 - **Exposure.** The application (5001) and Grafana (3000) are published on every
   interface; PostgreSQL on loopback only. The application's REST
-  API has no authentication, and demoting a device deletes it from Home
-  Assistant, so keep 5001 on a trusted network.
+  API and its console at `/ui` have no authentication, and demoting a device
+  deletes it from Home Assistant, so keep 5001 on a trusted network.
 - **First start.** A new database restores curated models and promoted devices
   from `model-seed.json` and `promotion-seed.json`, bundled in the jar. Export
   them from the running system before redeploying onto an empty store; see the

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title='Live monitor', active='monitor', content=~{::main})}">
+<body>
+<main class="console-content">
+  <div class="page-header">
+    <div>
+      <h1>Live monitor</h1>
+      <p class="lead-text">Readings as they arrive. To find out which device is which, show only unpromoted
+        devices and only changes, then open the door or press the button: the reading that appears, with what
+        changed highlighted, is that device's.</p>
+    </div>
+  </div>
+
+  <form id="monitor-filter" class="card mb-4" th:hx-get="@{/ui/monitor/feed}" hx-target="#feed-container"
+        hx-swap="innerHTML" hx-disinherit="*">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-2">
+          <label for="source" class="form-label small fw-semibold">Source</label>
+          <input class="form-control" id="source" name="source" th:value="${source}">
+        </div>
+        <div class="col-md-4">
+          <label for="id" class="form-label small fw-semibold">Device id <span class="text-body-secondary fw-normal">— watch one device, heard or not</span></label>
+          <input class="form-control mono" id="id" name="id" list="heard-ids" th:value="${id}"
+                 placeholder="e.g. DSC-Security/2328667" autocomplete="off">
+          <datalist id="heard-ids"><option th:each="h : ${heard}" th:value="${h.deviceKey.id}"></option></datalist>
+        </div>
+        <div class="col-md-3">
+          <label for="q" class="form-label small fw-semibold">Search</label>
+          <div class="search-input"><i class="bi bi-search"></i>
+            <input class="form-control" id="q" name="q" th:value="${q}" placeholder="Model, id or name contains…"></div>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary flex-grow-1"><i class="bi bi-play-fill me-1"></i>Watch</button>
+          <a th:href="@{/ui/monitor}" class="btn btn-outline-secondary" title="Clear the filter">Reset</a>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-4 mt-3 align-items-center">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Which devices">
+          <th:block th:each="s : ${scopes}">
+            <input type="radio" class="btn-check" name="scope" th:id="'scope-' + ${s}" th:value="${s}" th:checked="${s == scope}"
+                   onchange="this.form.requestSubmit()">
+            <label class="btn btn-outline-secondary" th:for="'scope-' + ${s}"
+                   th:text="${s.name() == 'ALL'} ? 'All devices' : (${s.name() == 'UNPROMOTED'} ? 'Unpromoted' : 'Promoted')">All</label>
+          </th:block>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="changes" name="changes" value="true"
+                 th:checked="${changes}" onchange="this.form.requestSubmit()">
+          <label class="form-check-label" for="changes">Only changes and first sightings</label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="show-radio">
+          <label class="form-check-label" for="show-radio">Show radio fields (rssi, snr, time…)</label>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div id="feed-container">
+        <div th:fragment="feed" class="card">
+          <div class="card-header flex-wrap">
+            <span id="live-status" class="live-status"><span class="status-dot"></span><span class="live-text">Connecting…</span></span>
+            <span class="text-body-secondary fw-normal small">
+              <th:block th:if="${watched != null}">watching
+                <span class="device-key" th:text="${watched.id}">id</span>
+                <span th:if="${watchedPromotion != null}" th:text="'(' + ${watchedPromotion.name} + ')'"></span>
+              </th:block>
+              <th:block th:if="${watched == null}">
+                <span th:text="${scope.name() == 'ALL'} ? 'every device' : (${scope.name() == 'UNPROMOTED'} ? 'unpromoted devices' : 'promoted devices')">every device</span>
+                <span th:if="${!#strings.isEmpty(q)}" th:text="'matching “' + ${q} + '”'"></span>
+              </th:block>
+              <span th:if="${changes}">· changes only</span>
+              · <span id="feed-count">0</span> shown <span id="feed-missed" class="text-warning"></span>
+            </span>
+            <span class="ms-auto d-flex gap-2">
+              <a th:if="${watched != null}" class="btn btn-sm btn-outline-secondary"
+                 th:href="@{/ui/devices/view(source=${watched.source}, id=${watched.id})}"><i class="bi bi-box-arrow-up-right"></i> Device page</a>
+              <button th:if="${watched != null and watchedPromotion == null}" type="button" class="btn btn-sm btn-primary"
+                      hx-target="#modal-content" hx-swap="innerHTML" th:attr="hx-get=@{/ui/devices/form(source=${watched.source}, id=${watched.id})}">
+                <i class="bi bi-plus-lg"></i> Promote</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-feed-action="pause"><i class="bi bi-pause-fill"></i> Pause</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-feed-action="clear"><i class="bi bi-x-lg"></i> Clear</button>
+            </span>
+          </div>
+          <div class="feed hide-radio" hx-ext="sse" th:attr="sse-connect=@{${streamUrl}}" sse-swap="reading,refused"
+               hx-target="#feed-list" hx-swap="afterbegin" hx-disinherit="*"><div id="feed-list" class="feed-list"></div><div class="feed-empty console-empty">
+              <i class="bi bi-broadcast"></i>
+              <div class="fw-semibold">Waiting for readings</div>
+              <div class="small" th:text="${watched != null} ? 'Nothing from this device yet. Exercise it: open it, press its button, or warm it.' : 'Readings that match appear here the moment they arrive.'">Waiting</div>
+            </div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div th:fragment="heard" id="heard" class="card" th:hx-get="@{/ui/monitor/heard}" hx-swap="outerHTML"
+           th:attr="hx-trigger='every ' + ${refreshSeconds} + 's'">
+        <div class="card-header"><i class="bi bi-broadcast"></i>Heard this past hour
+          <span class="badge text-bg-secondary ms-1" th:text="${heardTotal}">0</span></div>
+        <div class="heard-list">
+          <div th:each="h : ${heard}" class="heard-item">
+            <div class="heard-main">
+              <a class="device-key text-decoration-none" th:href="@{/ui/devices/view(source=${h.deviceKey.source}, id=${h.deviceKey.id})}"
+                 th:text="${h.deviceKey.id}">id</a>
+              <span class="small text-body-secondary">
+                <span th:if="${promoted.get(h.deviceKey) != null}" class="text-success-emphasis" th:text="${promoted.get(h.deviceKey).name}">name</span>
+                <span th:if="${promoted.get(h.deviceKey) == null}" th:text="${h.modelName ?: 'unnamed model'}">model</span>
+                · <time data-format="relative" th:datetime="${h.lastHeard}"></time>
+              </span>
+            </div>
+            <div class="heard-count">
+              <div th:text="${h.readings} + '×'">1×</div>
+              <div class="mono" th:text="${h.signal != null} ? ${#numbers.formatDecimal(h.signal, 1, 1)} + ' dB' : ''"></div>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary" title="Watch only this device"
+               th:href="@{/ui/monitor(source=${h.deviceKey.source}, id=${h.deviceKey.id})}"><i class="bi bi-crosshair"></i></a>
+          </div>
+          <th:block th:if="${heard.isEmpty()}"><div th:replace="~{ui/layout :: empty('bi-broadcast', 'Nothing heard yet', 'Devices appear as their readings arrive.')}"></div></th:block>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

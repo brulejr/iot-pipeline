@@ -4,7 +4,8 @@ Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerpri
 and deduplicated, classification identifies device models by structural fingerprint,
 the promotion gate admits only approved devices, their readings are parsed, stored in
 PostgreSQL, shaped for Home Assistant and published to its broker, and unpromoted devices
-are ranked for promotion; alerting (stage 8) is not started. Local PostgreSQL + Grafana run via Compose. An earlier
+are ranked for promotion; alerting (stage 8) is not started. An operator console
+manages the data and streams readings live. Local PostgreSQL + Grafana run via Compose. An earlier
 prototype (event-driven model) was the starting point for this redesign.
 
 ## Goal
@@ -211,6 +212,43 @@ add a write per message to keep only stale states.
 
 Paho's own reconnection is off; the service decides when to try again, so health can
 say plainly whether the broker is answering.
+
+## Operator Console and Live Monitor
+
+A server-rendered console under `/ui`: Thymeleaf pages made interactive with htmx,
+styled with Bootstrap. It manages what the API manages (curating and deleting
+models, promoting, editing and demoting devices, the recommendations) and adds a
+live monitor of readings. It holds no logic of its own: every page calls the same
+feature services the REST controllers do, so a rule such as "a mapping must say
+what it reads" is enforced once, in the service, for both. Each feature keeps its
+page controller in a `web` package beside its `api` one; `console/` holds the
+dashboard and what the pages share. Its browser libraries are WebJars, served
+from the jar, because the target platform need not have internet access.
+
+**Why server-rendered.** The pages are forms and tables over a few hundred rows,
+and the one live view streams already-rendered HTML. A single-page application
+would add a build, a client-side model of every type, and an API surface to keep
+in step, for nothing the pages need.
+
+**Live monitor.** Identifying a device means exercising it, opening a door or
+pressing a button, and seeing which transmission arrives. The monitor taps
+`classifiedChannel` with a wire tap, so it sees every reading whatever the
+promotion gate decides, unpromoted devices included. For each device it remembers
+the last payload, in memory, for an hour, and compares each reading with the one
+before it from the same device. A field that differs is marked changed. Radio
+metadata (the fields dedupe ignores) is never a change, since it differs on every
+transmission, and a device not heard within the hour is marked first heard. A
+stream can follow one device key, which need not have been heard yet, or a
+search, promoted or unpromoted devices, and only changes. With changes only, the
+steady reports of everything nobody is touching drop away and the exercised
+device stands out.
+
+The tap never slows or fails the pipeline: observing a reading only records it and
+offers it to each open stream's bounded queue, and a full queue drops the event.
+Each stream drains its queue on its own virtual thread, rendering the reading's
+HTML fragment and sending it as a server-sent event, which htmx's SSE extension
+prepends to the feed. A stream that cannot be written to has lost its browser,
+and closes. The number of open streams is capped.
 
 ## Next Steps
 

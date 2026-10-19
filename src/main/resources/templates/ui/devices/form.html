@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!--/* The promotion dialog, swapped into the shared modal. */-->
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<form th:fragment="dialog" th:hx-post="@{/ui/devices}" hx-target="#modal-content" hx-swap="innerHTML" novalidate>
+  <input type="hidden" name="editing" th:value="${editing}">
+  <div class="modal-header">
+    <h2 class="modal-title fs-5">
+      <i class="bi me-2" th:classappend="${editing} ? 'bi-pencil-square' : 'bi-shield-plus'"></i>
+      <span th:text="${editing} ? 'Edit ' + ${name} : 'Promote a device'">Promote a device</span>
+    </h2>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+  </div>
+  <div class="modal-body">
+    <p class="text-body-secondary small" th:unless="${editing}">A promoted device's readings are parsed, stored and published to
+      Home Assistant. Any key can be promoted, heard or not; its model needs curating before its readings can be read.</p>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold" for="device-source">Source</label>
+        <input class="form-control" id="device-source" name="source" th:value="${source}" th:readonly="${editing}"
+               th:classappend="${errors.containsKey('source')} ? 'is-invalid'">
+        <div class="invalid-feedback" th:text="${errors.get('source')}"></div>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label fw-semibold" for="device-id">Device id</label>
+        <input class="form-control mono" id="device-id" name="id" th:value="${id}" th:readonly="${editing}" list="device-ids"
+               autocomplete="off" placeholder="e.g. DSC-Security/2328667"
+               th:classappend="${errors.containsKey('deviceId')} ? 'is-invalid'">
+        <datalist id="device-ids">
+          <option th:each="h : ${heard}" th:value="${h.deviceKey.id}" th:text="${h.modelName}"></option>
+        </datalist>
+        <div class="invalid-feedback" th:text="${errors.get('deviceId')}"></div>
+        <div class="form-text" th:unless="${editing}">Model/channel/id, as on the live monitor. Suggestions are unpromoted devices heard this past hour.</div>
+      </div>
+      <div class="col-12">
+        <label class="form-label fw-semibold" for="device-name">Name</label>
+        <input class="form-control" id="device-name" name="name" th:value="${name}" placeholder="e.g. Kitchen sliding door"
+               th:classappend="${errors.containsKey('name')} ? 'is-invalid'" autofocus>
+        <div class="invalid-feedback" th:text="${errors.get('name')}"></div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold" for="device-type">Type</label>
+        <input class="form-control" id="device-type" name="type" th:value="${type}" list="device-types" placeholder="e.g. door"
+               th:classappend="${errors.containsKey('type')} ? 'is-invalid'">
+        <datalist id="device-types"><option th:each="t : ${types}" th:value="${t}"></option></datalist>
+        <div class="invalid-feedback" th:text="${errors.get('type')}"></div>
+        <div class="form-text">door, window or garage_door also tells Home Assistant what a contact guards.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold" for="device-area-input">Area</label>
+        <input class="form-control" id="device-area-input" name="area" th:value="${area}" list="device-areas" placeholder="e.g. kitchen"
+               th:classappend="${errors.containsKey('area')} ? 'is-invalid'">
+        <datalist id="device-areas"><option th:each="a : ${areas}" th:value="${a}"></option></datalist>
+        <div class="invalid-feedback" th:text="${errors.get('area')}"></div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button type="submit" class="btn btn-primary">
+      <span class="htmx-indicator spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+      <span th:text="${editing} ? 'Save' : 'Promote'">Promote</span></button>
+  </div>
+</form>
+</body>
+</html>

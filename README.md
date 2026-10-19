@@ -27,6 +27,10 @@ alerting is not started.
 | 7. Publication | Working — published to the consumer's broker; failures are held, latest per topic, and retried |
 | 8. Alerting | Not started |
 
+An operator console at `http://localhost:5001/ui` manages the data — models,
+promotions, recommendations — and streams readings live, for identifying a
+device by exercising it; see [The console](#the-console).
+
 [`docs/DESIGN.md`](docs/DESIGN.md) is the authoritative design document and
 covers the reasoning behind each stage.
 
@@ -94,13 +98,45 @@ Each feature also has an endpoint of its own:
 | `GET /api/ingest/mqtt` | Broker connection, messages received and malformed |
 | `POST /api/fingerprints` | The hashes a payload would get, without processing it |
 | `GET /api/dedupe` | Readings passed and discarded as duplicates |
-| `GET /api/models`, `PUT /api/models/{fingerprint}/curation` | The model registry and curation |
+| `GET /api/models`, `PUT /api/models/{fingerprint}/curation`, `DELETE /api/models/{fingerprint}` | The model registry, curation, and forgetting a model |
 | `GET`/`POST /api/promoted-devices`, `PUT`/`DELETE …/{source}/{deviceId}` | Device approvals; `POST` promotes several at once |
 | `GET /api/recommendations` | Unpromoted devices, best candidate first |
 | `POST /api/models/{fingerprint}/parse` | What a payload would parse to under a model's curation |
 | `GET /api/store` | Readings and values written, and failed writes |
 | `GET /api/outbound-messages` | The latest Home Assistant message for each topic |
 | `GET /api/publish`, `GET /api/publish/pending`, `POST /api/publish/flush` | Publication counts, messages held for retry, and a retry now |
+| `GET /api/monitor`, `GET /api/monitor/heard` | Live-monitor counts, and every device heard this past hour with its last payload |
+
+### The console
+
+`http://localhost:5001/ui` (and `/`, which redirects there) is a server-rendered
+console, Thymeleaf with htmx, over the same services as the API:
+
+| Page | What it does |
+| --- | --- |
+| Dashboard | Each stage's health and counts, the best promotion candidates, the devices heard last; reloads itself |
+| Live monitor | Readings streamed as they are classified, filtered to one device key, a search, promoted or unpromoted devices, and optionally only changes |
+| Devices | Promoted devices: promote any key, edit, demote; a page for every device key, promoted or not, with its last payload and stored values |
+| Recommendations | Unpromoted devices ranked, each one click from being watched live or promoted |
+| Models | The catalogue, and curation against the model's structure, with each field's last value and a preview of what the saved curation reads |
+
+To identify a device, open the live monitor, choose **Unpromoted** and **Only
+changes and first sightings**, then exercise it: open the door, press the button,
+warm the sensor. The reading that arrives is that device's, marked *first heard*
+if it was silent until now, or with each field that changed since its previous
+transmission highlighted and the old value struck through. Radio metadata such as
+`rssi` and `snr` is never counted as a change. **Watch** narrows the stream to that
+device, and **Promote** opens the promotion dialog with its key filled in. A key
+can be watched before it is ever heard, so a device known only by the label on
+its back can be confirmed the moment it first transmits.
+
+The live monitor sees every classified reading through a wire tap, whatever the
+promotion gate decides, and remembers the devices heard in the last hour in memory
+(`pipeline.monitor.*`). Each browser stream has its own bounded queue, so a slow
+or forgotten tab drops events rather than slowing the pipeline. Its browser
+libraries (Bootstrap, Bootstrap Icons, htmx) are served from WebJars in the jar,
+so the console works without internet access. Like the API it has no
+authentication; keep port 5001 on a trusted network.
 
 ### Seeing readings
 
@@ -273,7 +309,13 @@ src/main/kotlin/io/brulejr/iotpipeline/
 ├── store/            #   PostgreSQL storage
 ├── transform/        # Stage 6 — shaping for Home Assistant
 ├── publish/          # Stage 7 — delivery to the consumer's broker
+├── monitor/          #   live stream of classified readings, devices heard recently
+├── console/          # The operator console's dashboard and shared web pieces
 └── pipeline/         # Cross-cutting: channels, error log, registry choice, schema migration
+
+src/main/resources/
+├── templates/ui/     # The console's Thymeleaf pages
+└── static/ui/        # Its stylesheet and script
 ```
 
 Packages mirror pipeline stages. `pipeline/PipelineChannels.kt` holds the
@@ -284,7 +326,8 @@ so later stages never see transport details.
 Every feature package has the same shape: one `*Config` declaring its beans
 and flows, a validated `*Datafill` for its `pipeline.*` settings, a `*Service`
 holding its logic, a `*Controller`, a health indicator and an info
-contributor. Storage sits behind ports such as `ModelRegistryPort`, so PostgreSQL
+contributor. A feature with console pages keeps their controller in a `web`
+package beside `api`, e.g. `promote/web/DevicePageController`. Storage sits behind ports such as `ModelRegistryPort`, so PostgreSQL
 and in-memory implementations swap without touching the flow wiring.
 
 ### Fingerprinting and model identification
@@ -649,7 +692,8 @@ A curation must give a real `category` — not blank, and not the `uncategorised
 placeholder. A mapping must name a field the model's structure actually has, at
 any depth, and its type must be one the mapping can read: `ANALOG` needs a
 number, `BINARY` takes a number or a boolean, since rtl_433 encodes states as 0
-and 1. Only a `BINARY` mapping may be inverted. A request breaking either rule is
+and 1. Every mapping needs a `classname` saying what it reads. Only a `BINARY`
+mapping may be inverted. A request breaking either rule is
 refused whole, leaving existing mappings untouched, and reports every problem
 at once rather than one per attempt:
 

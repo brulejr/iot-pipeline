@@ -78,6 +78,7 @@ class PipelineTopologyTest {
         PipelineChannels.DEMOTED,
         PipelineChannels.UNKNOWN_DEVICE,
         PipelineChannels.INGEST_ERRORS,
+        PipelineChannels.MONITOR,
     )
 
     @Test
@@ -104,6 +105,8 @@ class PipelineTopologyTest {
             PipelineChannels.DEMOTED to Wiring(subscribers = setOf("demotionFlow")),
             // Fed by the MQTT adapter's error channel, so also uncovered here.
             PipelineChannels.INGEST_ERRORS to Wiring(subscribers = setOf("ingestErrorFlow")),
+            // A copy of every classified reading, tapped off classification for the live monitor.
+            PipelineChannels.MONITOR to Wiring(setOf("monitorFlow"), setOf("classificationFlow")),
         )
 
         assertEquals(expected, actualWiring())
@@ -145,9 +148,11 @@ class PipelineTopologyTest {
      * Reduces a graph node name to the bean that owns it: channels keep their own name,
      * while an endpoint such as
      * `iot-pipeline.dedupeFlow.org.springframework.integration...#0` becomes
-     * `dedupeFlow`.
+     * `dedupeFlow`. A wire tap is drawn as a sub-flow of the flow declaring it,
+     * `classificationFlow.subFlow#0`, and is credited to that flow.
      */
     private fun label(name: String): String = name
         .removePrefix("$applicationName.")
         .substringBefore(".org.springframework")
+        .substringBefore(".subFlow#")
 }

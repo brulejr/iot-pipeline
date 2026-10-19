@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{ui/layout :: page(title='Models', active='models', content=~{::main})}">
+<body>
+<main class="console-content">
+  <div class="page-header">
+    <div>
+      <h1>Models <span class="badge text-bg-secondary align-middle fs-6" th:text="${total}">0</span></h1>
+      <p class="lead-text">Every payload structure heard on the band registers itself as a model. A model is read only
+        once it is curated: given a category and a mapping from its fields to sensors.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <form id="model-filter" class="filter-bar w-100" th:hx-get="@{/ui/models/rows}" hx-target="#model-rows"
+            hx-swap="outerHTML" hx-trigger="input changed delay:250ms from:#model-q, change from:#model-status, submit">
+        <div class="search-input flex-grow-1"><i class="bi bi-search"></i>
+          <input class="form-control" id="model-q" type="search" name="q" th:value="${q}" placeholder="Search name, category or fingerprint"></div>
+        <select class="form-select w-auto" id="model-status" name="status" aria-label="Curation">
+          <option value="all" th:selected="${status == 'all'}">All models</option>
+          <option value="curated" th:selected="${status == 'curated'}">Curated</option>
+          <option value="uncurated" th:selected="${status == 'uncurated'}">Not curated</option>
+        </select>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>Model</th><th>Category</th><th>Sensors</th><th>Heard</th><th>Discovered</th><th>Fingerprint</th><th></th></tr></thead>
+        <tbody id="model-rows" th:fragment="rows">
+        <tr th:each="m : ${models}">
+          <td>
+            <a class="fw-semibold text-decoration-none" th:href="@{/ui/models/{fp}(fp=${m.fingerprint})}"
+               th:text="${m.name ?: 'unnamed'}">name</a>
+            <div class="small text-body-secondary" th:text="${m.source}">rtl433</div>
+          </td>
+          <td>
+            <span th:if="${m.category != 'uncategorised'}" class="badge badge-soft text-primary-emphasis bg-primary-subtle border-primary-subtle" th:text="${m.category}">weather</span>
+            <span th:if="${m.category == 'uncategorised'}" class="text-body-secondary small">—</span>
+          </td>
+          <td>
+            <span th:if="${m.recognised}" class="badge badge-soft text-success-emphasis bg-success-subtle border-success-subtle">
+              <i class="bi bi-check2"></i> <span th:text="${m.sensors.size()} + ' mapped'">2 mapped</span></span>
+            <span th:unless="${m.recognised}" class="badge badge-soft text-warning-emphasis bg-warning-subtle border-warning-subtle">not curated</span>
+          </td>
+          <td>
+            <span th:with="n=${heardByModel.get(m.fingerprint)}" th:text="${n != null} ? ${n} + (${n == 1} ? ' device' : ' devices') : '—'"
+                  th:classappend="${n == null} ? 'text-body-secondary'">—</span>
+          </td>
+          <td><time data-format="relative" th:datetime="${m.discoveredAt}"></time></td>
+          <td><span class="fingerprint" th:text="${#strings.substring(m.fingerprint, 0, 12)}" th:title="${m.fingerprint}">abc</span></td>
+          <td class="table-actions">
+            <a class="btn btn-sm btn-outline-primary" th:href="@{/ui/models/{fp}(fp=${m.fingerprint})}">
+              <i class="bi bi-pencil-square"></i> <span th:text="${m.recognised} ? 'Edit' : 'Curate'">Curate</span></a>
+          </td>
+        </tr>
+        <tr th:if="${models.isEmpty()}"><td colspan="7">
+          <div th:replace="~{ui/layout :: empty('bi-diagram-3', 'No models match', 'Models register themselves as their readings arrive.')}"></div>
+        </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div th:replace="~{ui/layout :: toast(${toast})}"></div>
+</main>
+</body>
+</html>
