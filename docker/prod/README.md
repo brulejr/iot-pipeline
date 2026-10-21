@@ -67,8 +67,9 @@ profile file.
   deletes it from Home Assistant, so keep 5001 on a trusted network.
 - **First start.** A new database restores curated models and promoted devices
   from `model-seed.json` and `promotion-seed.json`, bundled in the jar. Export
-  them from the running system before redeploying onto an empty store; see the
-  main README.
+  them from the running system before redeploying onto an empty store; see
+  [Models](../../docs/models.md#seeding-and-backing-up-curation) and
+  [Devices](../../docs/devices.md#seeding-and-backing-up-approvals).
 - **Grafana comes provisioned.** The PostgreSQL datasource and the **Sensors**
   dashboard load from `../grafana/provisioning/`, as in `dev`. Its admin password
   is set from `GRAFANA_ADMIN_PASSWORD` only when the `grafana-data` volume is first

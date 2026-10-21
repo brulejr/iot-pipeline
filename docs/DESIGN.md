@@ -1,52 +1,100 @@
-# IoT Pipeline: Design Notes
+# Design
 
-Status: scaffolded. Ingestion works end to end over MQTT, readings are fingerprinted
-and deduplicated, classification identifies device models by structural fingerprint,
-the promotion gate admits only approved devices, their readings are parsed, stored in
-PostgreSQL, shaped for Home Assistant and published to its broker, and unpromoted devices
-are ranked for promotion; alerting (stage 8) is not started. An operator console
-manages the data and streams readings live. Local PostgreSQL + Grafana run via Compose. An earlier
-prototype (event-driven model) was the starting point for this redesign.
+This is the authoritative record of how iot-pipeline is built and why. The other
+guides say how to *use* each part; this one says why it works the way it does, and
+is the place to read before changing the pipeline's structure. Each section links
+to the guide for that part of the system.
+
+Stages 1 to 7 are built, from ingestion to publication for Home Assistant, along
+with an operator console and live monitor. Alerting (stage 8) is not started.
+The design began as a rework of an earlier, event-driven prototype; where a
+decision departs from it, the reason is given.
 
 ## Goal
 
-Ingest sensor data (initially JSON from RTL-SDR via rtl_433 over MQTT), classify it, vet unknown devices, store known-device data with a retention window, then transform and publish it to downstream consumers such as Home Assistant.
+Ingest sensor data (initially JSON from RTL-SDR via rtl_433 over MQTT), classify
+it, vet unknown devices, store known-device data with a retention window, then
+transform and publish it to downstream consumers such as Home Assistant.
 
-## Tech Stack (decided / leaning)
+## Principles
 
-- Language / framework: Kotlin, Spring Boot, Spring Integration (idiomatic Kotlin DSL, coroutines where they help)
-- Ingestion transport: Spring Integration MQTT adapter (wraps Eclipse Paho). Prototype used a raw Hive-style MQTT client.
-- Storage: PostgreSQL, for the readings and every registry alike; see Storage below. It replaced InfluxDB 3 Core (readings), which did not deploy on the target platform, and MongoDB (registries), so one database serves both. Dedicated to this application for now, in a schema of its own so it can move to a shared instance later.
-- Dashboards: Grafana as an external consumer of PostgreSQL, reading through a SELECT-only role. No app-specific Grafana integration. Dashboards are provisioned as code.
-- Deployment: Docker Compose; the database is owned solely by this application.
-- Edge hardware: Orange Pi Zero running rtl_433 with an RTL-SDR dongle. Kept dumb and lightweight: it only forwards decoded data to MQTT, with no routing or classification logic on it.
+- **A dumb edge.** The edge host — an Orange Pi Zero running rtl_433 with an
+  RTL-SDR dongle — only forwards decoded data to MQTT, with no routing or
+  classification logic on it. Everything that needs deciding is decided here,
+  where it can be changed, tested and observed.
+- **A person decides what is kept.** The antenna hears any 433 MHz device in
+  range (neighbours, cars, noise), so most of what arrives is not of interest.
+  Nothing is stored until someone has said how to read a kind of device and that
+  a particular one matters. The pipeline helps with both, and decides neither.
+- **Storage is the neutral boundary.** Everything before storage is
+  consumer-agnostic; everything after it shapes data for one consumer. A second
+  consumer is a second transformer, not a change upstream.
+- **Swappable behind ports.** Storage sits behind ports (`ModelRegistryPort`,
+  `PromotionPort`, `SightingRegistryPort`, `ReadingStorePort`), and so does
+  transformation (`ReadingTransformerPort`). Each registry has a PostgreSQL and an
+  in-memory implementation; the tests use memory.
+- **Observable at every stage.** Each stage logs under its own category, reports
+  health and info through Actuator, and has an endpoint of its own; Micrometer
+  observes every channel and handler. See [Operations](operations.md).
 
-## Pipeline Stages
+## Technology
 
-0. **Fingerprint and dedupe.** Sits between ingestion and classification; see the
-   section below. Not numbered in the original sketch, but everything after it depends
-   on one transmission being counted once.
-1. **Ingestion.** Adapter-agnostic. MQTT first; other adapters later (e.g. periodic REST poll of a weather station). A single MQTT topic carries all rtl_433 data. Each message gets a coarse source-level annotation (metadata/envelope field) identifying where it came from.
-2. **Classification.** Determines what kind of device/data a message is and resolves the rule set used to decode that payload. Source is one input to the rules; rules can be cross-source or source-aligned. Rule sets are manually curated for now. Rules written as type-safe Kotlin code are preferred (candidate: in-rules-engine), behind a pluggable interface/port so implementations can be swapped (e.g. hand-rolled pattern matching).
-3. **Branch: known vs unknown device.**
-   - Known: continue to normal processing.
-   - Unknown: go to the recommendation engine.
-4. **Recommendation engine.** Evaluates unknown devices by frequency and proximity to decide whether they are worth tracking. The antenna hears any 433 MHz device in range (neighbors, noise), so most are not of interest. Promotion to "known" is a manual review/approve step for now; more AI-driven promotion is a possible future direction.
-5. **Storage.** Known-device data lands in PostgreSQL with a retention period so data ages out automatically. Storage is the neutral handoff boundary; everything before it is consumer-agnostic.
-6. **Transformation.** Reshapes neutral stored data into the format a specific consumer needs (e.g. Home Assistant).
-7. **Publication / delivery.** Publishes the transformed data. Circuit-breaker-style retry handling so a failed publish does not force re-running the transformation. One stage; see Publication below.
-8. **Alerting (future).** Possible later stage for broadcasting particular high-priority event types. Out of immediate scope.
+- **Kotlin, Spring Boot, Spring Integration**, using the Kotlin DSL. Stages are
+  integration flows joined by named channels, so the pipeline's shape is visible
+  in one place and checked by a test against the graph Spring actually builds.
+- **MQTT through Spring Integration's adapter**, which wraps Eclipse Paho. The
+  prototype used a raw Hive-style client.
+- **PostgreSQL** for the readings and every registry alike; see
+  [Storage](#storage). It replaced InfluxDB 3 Core (readings), which did not
+  deploy on the target platform, and MongoDB (registries), so one database serves
+  both. Dedicated to this application for now, in a schema of its own so it can
+  move to a shared instance later.
+- **Grafana** as an external consumer of PostgreSQL, reading through a
+  SELECT-only role, with dashboards provisioned as code. The application has no
+  Grafana integration of its own.
+- **Thymeleaf and htmx** for the operator console; see
+  [Operator console and live monitor](#operator-console-and-live-monitor).
+- **Docker Compose** for deployment; the database is owned solely by this
+  application. See [Docker](../docker/README.md).
 
-Observability is wanted at each stage.
+## Pipeline
 
-## Open Questions
+| Stage | Package | Reads from | Writes to | Guide |
+| --- | --- | --- | --- | --- |
+| 1. Ingestion | `ingest/mqtt` | the broker | `ingestChannel` | [Configuration](configuration.md) |
+| 1.5 Fingerprint and dedupe | `fingerprint`, `dedupe` | `ingestChannel` | `fingerprintedChannel`, then `dedupedChannel` | [Models](models.md) |
+| 2. Classification | `classify` | `dedupedChannel` | `classifiedChannel` | [Models](models.md) |
+| 3. Promotion gate | `promote` | `classifiedChannel` | `promotedChannel`, `promotionGapChannel`, `unknownDeviceChannel` | [Devices](devices.md) |
+| 4. Recommendation | `recommend` | `unknownDeviceChannel` | sightings | [Devices](devices.md) |
+| 5. Parsing and storage | `parse`, `store` | `knownDeviceChannel` (via `promotedChannel`) | `parsedChannel`, then `storedChannel` | [Stored readings](readings.md) |
+| 6. Transformation | `transform` | `storedChannel`, `demotedChannel` | `outboundChannel` | [Home Assistant](home-assistant.md) |
+| 7. Publication | `publish` | `outboundChannel` | the consumer's broker | [Home Assistant](home-assistant.md) |
+| 8. Alerting | — | — | — | not started |
 
-- Retention window length, and whether to downsample older readings rather than delete them
+`pipeline/PipelineChannels.kt` names every channel; `PipelineTopologyTest` asserts
+the wiring. Every channel has exactly one subscriber: they are direct channels,
+which load-balance rather than broadcast. The live monitor is fed by a wire tap on
+classification (`monitorChannel`), and so sees every classified reading, whatever
+the gate decides.
 
-## Fingerprinting, Dedupe and Model Identification
+Fingerprinting and dedupe were not in the original sketch, which numbered the
+stages 1 to 8; they sit between ingestion and classification as 1.5 because
+everything after depends on one transmission being counted once.
 
-Settled, following the earlier prototype. Every reading is fingerprinted immediately
-after ingestion, producing three hashes:
+## Ingestion
+
+Adapter-agnostic. MQTT first; other adapters could follow (for example a periodic
+REST poll of a weather station). A single MQTT topic pattern carries all rtl_433
+data. Each adapter lives in a transport-specific subpackage and ends by sending a
+`SensorEnvelope` to `ingestChannel`, carrying the decoded payload and a coarse
+`source` annotation identifying where it came from, so no later stage sees
+transport details. Source is one input to identity: a device key is the source
+plus the device's own id.
+
+## Fingerprinting, dedupe and model identification
+
+Following the earlier prototype, every reading is fingerprinted immediately after
+ingestion, producing three hashes:
 
 - **event** — the reading itself. What dedupe compares.
 - **device** — the transmitter, from source plus `model`/`channel`/`id`. Deliberately
@@ -59,9 +107,9 @@ excluded from the event and model hashes by name, at any depth. It describes nei
 the reading nor the kind of device. Excluding it from the *event* hash is what lets
 dedupe recognise rtl_433's repeated decodes of one transmission, whose `rssi` and
 `time` drift slightly; measured against a live stream it roughly doubled the
-duplicates caught. This is safe only because the dedupe window is short — two genuine
-transmissions carrying identical values would collapse if the window outlived the
-sensor's reporting interval.
+duplicates caught. This is safe only because the dedupe window is short (5 seconds
+by default) — two genuine transmissions carrying identical values would collapse if
+the window outlived the sensor's reporting interval.
 
 **Dedupe** remembers each device's last event hash for the length of the window and
 drops a repeat, so later stages count one transmission once.
@@ -73,70 +121,53 @@ themselves on first sighting, so the catalogue builds from live traffic instead 
 being written out in advance.
 
 Recognising a model still takes a human: someone supplies its sensor mappings, which
-say how to read values out of its payload. A model without mappings is registered but
-not recognised, and its readings cannot be parsed. This is the only curated input, and
-it replaces the hand-written matching rules that preceded it.
+say how to read values out of its payload, and its category. A model without
+mappings is registered but not recognised, and its readings cannot be parsed. This
+is the only curated input. It replaces the hand-written matching rules that
+preceded it, which an earlier plan would have written as type-safe Kotlin rules in
+a rules engine: identifying by structure made rules unnecessary, leaving only the
+reading of values to curate.
 
-Whether a *device* is known remains a separate question answered by promotion, also
-manual. Until stage 3 exists, every reading goes to the recommendation engine carrying
-its model.
+Curation is validated when it is made, not when it is used: a mapping must name a
+field the structure has and a type that field can be read as, and a seeded model's
+fingerprint must be the hash of its own structure. Without that a typo would store
+happily, report the model recognised, and yield nothing at parse time, far from the
+cause. Because curation is the only hand-made data, it is also kept in a seed file
+restored at startup, which fills gaps but never overwrites what the API set.
 
 The registry lives in PostgreSQL behind `ModelRegistryPort`, in a `models` table keyed
 by the structural fingerprint, so the store cannot hold two records for one structure.
 A model is partly a document, an arbitrary payload structure plus a nested list of
 sensor mappings; the mappings are a `jsonb` column, since they are always read and
-replaced whole. An in-memory implementation remains for tests.
+replaced whole.
+
+How to curate: [Models and curation](models.md).
 
 ## Promotion
 
-Settled: promotion is per device and manual, keyed by the device key rather than by the
-device fingerprint. The two are the same identity derived from the same fields, but the
-key is what the logs print, so it is what an operator can act on.
+Promotion is per device and manual, keyed by the device key rather than by the
+device fingerprint. The two are the same identity derived from the same fields, but
+the key is what the logs print, so it is what an operator can act on.
 
 Curating a model and promoting a device are separate decisions. The first says how to
-read a kind of device, the second says this particular one matters. A reading only
-passes the gate when both have happened; a promoted device whose model has no sensor
-mappings is logged as a gap rather than dropped, because that combination is someone's
-oversight rather than noise.
+read a kind of device, the second says this particular one matters, and gives it the
+name, type and area it has to its owner. A reading only passes the gate when both
+have happened; a promoted device whose model has no sensor mappings is logged as a
+gap rather than dropped silently, because that combination is someone's oversight
+rather than noise.
 
-The recommendation engine will propose candidates for promotion, but nothing is
-promoted without a person.
+The recommendation engine proposes candidates for promotion, but nothing is
+promoted without a person. More automated promotion is a possible future direction.
 
-## Storage
+Demotion is reported on `demotedChannel`, so the transformer can withdraw the device
+from its consumer; see [Transformation](#transformation). Approvals, like curation,
+are restored at startup from a seed file that only fills gaps.
 
-Settled: PostgreSQL holds everything the application keeps, readings and registries, in
-one database. InfluxDB 3 Core held the readings and MongoDB the registries until
-InfluxDB would not deploy on the target platform; PostgreSQL replaced both, so there is
-one database to run and back up rather than two. It runs on every architecture in
-question, and Grafana reads it with its own built-in data source. At this scale, a few
-dozen devices and a month of readings, a plain table needs no time-series extension.
-
-One row per value rather than per reading, so each sensor is its own series. A model
-gaining or losing a mapping does not reshape what is already stored, and a query for
-temperature need not know which models report it. The columns identifying a series are
-only what cannot be relabelled — the device key, the model and its category, the
-sensor's class and its payload field. The operator's name, type and area are stored
-alongside (`device_name`, `device_type`, `device_area`), recording the labels a reading
-was taken under, so relabelling a device does not rewrite its history. An analog value
-is in `value` and a binary one in `state`; every row has exactly one. The column names
-follow the InfluxDB measurement this replaced, so the dashboards carried over.
-
-The application owns its schema, `iot_pipeline`, and creates its tables with Flyway
-migrations. It connects as its own role, never the superuser, and Grafana as a role that
-can only read: the database is dedicated for now, but moving it to a shared instance
-means creating the same two roles and the schema there. Migrations run while the first
-feature using PostgreSQL is created, not through Spring Boot's auto-configuration, which
-would connect even in a context with every registry in memory; they still run before
-Spring Integration starts its endpoints, so the tables exist before the first reading.
-
-PostgreSQL has no retention period of its own, so the application deletes readings older
-than `pipeline.store.retention` as it writes new ones, at most once an hour, and
-sightings older than a week the same way. A change to the retention applies to
-everything already stored, which InfluxDB's fixed-at-creation period did not allow.
+How to promote: [Devices](devices.md).
 
 ## Recommendation
 
-Settled, after measuring rather than porting the prototype. Frequency is measured as
+Settled after measuring rather than porting the prototype. Frequency is measured as
 persistence — distinct hours heard in the last 24 — not as readings per hour. The
 prototype's "30 sightings in an hour" would never recommend an event-driven sensor such
 as a DSC door contact, which may report a handful of times an hour while being in range
@@ -161,11 +192,64 @@ than stored, so promoting a device or curating its model shows at once. Buckets 
 after a week.
 
 The calibration rests on few samples: a handful of decodes per device other than the
-operator's own tower. Worth revisiting once a few days of sightings have accumulated.
+operator's own tower. Worth revisiting once more sightings have accumulated.
+
+How to read the ranking: [Devices](devices.md#recommendations).
+
+## Parsing
+
+A promoted reading's payload is read through its model's sensor mappings, applying
+each mapping's `inverted` flag, into one value per mapping. Every mapping is
+expected to produce a value: curation refuses a mapping naming a field the
+structure lacks or a type it cannot read, and the model's fingerprint *is* that
+structure, so a reading that matched the model carries exactly those fields. A
+value that cannot be read anyway is left out rather than guessed at. Such a
+reading is incomplete; it is stored with the values it has unless
+`pipeline.parse.drop-incomplete` is set.
+
+Polarity is decided here, from curation, rather than at publication by field name
+as the prototype did: only the person curating a model knows which way round a
+field runs, and rtl_433 and Home Assistant disagree (`battery_ok: 1` is healthy,
+HA's `battery` ON is low).
+
+## Storage
+
+PostgreSQL holds everything the application keeps, readings and registries, in
+one database. InfluxDB 3 Core held the readings and MongoDB the registries until
+InfluxDB would not deploy on the target platform; PostgreSQL replaced both, so there is
+one database to run and back up rather than two. It runs on every architecture in
+question, and Grafana reads it with its own built-in data source. At this scale, a few
+dozen devices and a month of readings, a plain table needs no time-series extension.
+
+One row per value rather than per reading, so each sensor is its own series. A model
+gaining or losing a mapping does not reshape what is already stored, and a query for
+temperature need not know which models report it. The columns identifying a series are
+only what cannot be relabelled — the device key, the model and its category, the
+sensor's class and its payload field. The operator's name, type and area are stored
+alongside (`device_name`, `device_type`, `device_area`), recording the labels a reading
+was taken under, so relabelling a device does not rewrite its history. An analog value
+is in `value` and a binary one in `state`; every row has exactly one. The column names
+follow the InfluxDB measurement this replaced, so the dashboards carried over.
+
+The application owns its schema, `iot_pipeline`, and creates its tables with Flyway
+migrations. It connects as its own role, never the superuser, and Grafana as a role that
+can only read: the database is dedicated for now, but moving it to a shared instance
+means creating the same two roles and the schema there. Migrations run while the first
+feature using PostgreSQL is created, not through Spring Boot's auto-configuration, which
+would connect even in a context with every registry in memory; they still run before
+Spring Integration starts its endpoints, so the tables exist before the first reading.
+For the same reason startup fails if PostgreSQL is unreachable while anything uses it.
+
+PostgreSQL has no retention period of its own, so the application deletes readings older
+than `pipeline.store.retention` (30 days by default) as it writes new ones, at most once
+an hour, and sightings older than a week the same way. A change to the retention applies
+to everything already stored, which InfluxDB's fixed-at-creation period did not allow.
+
+How to query: [Stored readings](readings.md).
 
 ## Transformation
 
-Settled for Home Assistant, the first consumer, behind `ReadingTransformerPort` so a
+Built for Home Assistant, the first consumer, behind `ReadingTransformerPort` so a
 second consumer is a second implementation rather than a change upstream. It reads from
 the stored channel, so nothing is shaped for a consumer before it has been kept.
 
@@ -179,22 +263,26 @@ Demotion withdraws a device: the promotion service reports it on the `demoted` c
 and the transformer answers with empty retained messages for the device's discovery and
 (when retained) state topics, which deletes the device in Home Assistant and clears what
 the broker keeps. The transformer forgets the device's discovery, so promoting it again
-recreates it. Removal goes through publication like everything else, outbox included.
+recreates it. Removal goes through publication like everything else, held messages
+included.
 
 Ids and topics are derived from the device key, never the operator's free-text name,
 since Home Assistant ids allow only letters, digits, `_` and `-`. Binary values go out
-as plain `ON`/`OFF`: the prototype inverted `battery_ok` and `closed` by field name at
-this point, which the curated `inverted` flag, applied during parsing, replaces.
+as plain `ON`/`OFF`, the curated `inverted` flag having been applied during parsing.
+A contact is curated as `opening`, since one model fits doors and windows alike, and
+the promoted device's type refines it to `door`, `window` or `garage_door`.
 
 Units come from rtl_433's field-name convention (`temperature_C`, `pressure_hPa`), not
 from curation. That also fixes the prototype reporting `temperature_F` as Celsius. A
 source that does not encode units in its field names would need them curated.
 
+What Home Assistant receives: [Home Assistant](home-assistant.md).
+
 ## Publication
 
-Settled as one stage, publishing to the consumer's own MQTT broker rather than the
-ingest one. It takes the transformer's messages one at a time, so a failure costs one
-message rather than re-running anything upstream.
+One stage, publishing to the consumer's own MQTT broker rather than the ingest one.
+It takes the transformer's messages one at a time, so a failure costs one message
+rather than re-running anything upstream.
 
 A message that cannot be delivered is held in memory, and so is everything after it
 until the broker is back, at most one per topic: a newer message for a topic replaces
@@ -213,7 +301,7 @@ add a write per message to keep only stale states.
 Paho's own reconnection is off; the service decides when to try again, so health can
 say plainly whether the broker is answering.
 
-## Operator Console and Live Monitor
+## Operator console and live monitor
 
 A server-rendered console under `/ui`: Thymeleaf pages made interactive with htmx,
 styled with Bootstrap. It manages what the API manages (curating and deleting
@@ -250,6 +338,20 @@ HTML fragment and sending it as a server-sent event, which htmx's SSE extension
 prepends to the feed. A stream that cannot be written to has lost its browser,
 and closes. The number of open streams is capped.
 
-## Next Steps
+The console and the API have no authentication: they are meant for a trusted
+network, and demoting a device deletes it from Home Assistant.
 
-- Move the database to a shared PostgreSQL when a second application needs one
+How to use it: [Operator console](console.md).
+
+## Alerting
+
+A possible later stage for broadcasting particular high-priority event types — a
+door opening at night, a leak sensor tripping. Out of immediate scope, and not
+designed yet.
+
+## Open questions
+
+- Retention window length, and whether to downsample older readings rather than
+  delete them.
+- Recommendation thresholds, calibrated on few samples.
+- Moving the database to a shared PostgreSQL when a second application needs one.

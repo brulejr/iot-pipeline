@@ -1,11 +1,1 @@
-[
-  {
-    "deviceKey": {
-      "source": "rtl433",
-      "id": "Acurite-Tower/A/3064"
-    },
-    "name": "Lab Weather sensor",
-    "type": "thermometer",
-    "area": "lab"
-  }
-]
+[]
