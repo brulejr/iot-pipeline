@@ -12,14 +12,13 @@ All routing, classification, and retention logic lives here.
 
 ## How it works
 
-```
-rtl_433 ─► MQTT ─► ingest ─► fingerprint & dedupe ─► classify ─► promotion gate
-                                                                   │        │
-                                                          not promoted    promoted
-                                                                   │        │
-                                                       recommendations    parse ─► PostgreSQL ─► Home Assistant (MQTT)
-                                                                                       │
-                                                                                    Grafana
+```mermaid
+flowchart LR
+    rtl433[rtl_433] --> mqtt[MQTT] --> ingest --> dedupe[fingerprint & dedupe] --> classify --> gate{promotion gate}
+    gate -- not promoted --> recommend[recommendations]
+    gate -- promoted --> parse --> postgres[(PostgreSQL)]
+    postgres --> ha["Home Assistant (MQTT)"]
+    postgres --> grafana[Grafana]
 ```
 
 A 433 MHz antenna hears every transmitter in range — your sensors, the
